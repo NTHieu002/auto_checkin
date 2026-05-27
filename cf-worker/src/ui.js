@@ -92,6 +92,11 @@ export function renderHTML() {
           <div class="muted">Không tự động trong hôm nay</div></div>
         <div class="toggle" id="tgSkip"><div class="knob"></div></div>
       </div>
+      <div class="switch">
+        <div><div style="font-weight:600">Báo Slack</div>
+          <div class="muted">Gửi thông báo Slack khi check-in/out</div></div>
+        <div class="toggle" id="tgSlack"><div class="knob"></div></div>
+      </div>
     </div>
     <div class="center" style="margin-top:16px">
       <button class="link" id="logoutBtn">Đăng xuất</button>
@@ -159,6 +164,7 @@ export function renderHTML() {
     }
     setToggle($("tgAuto"), data.config.autoEnabled);
     setToggle($("tgSkip"), data.config.skipToday);
+    setToggle($("tgSlack"), data.config.slackNotify);
   }
   function setToggle(el, on){ el.className = "toggle" + (on ? " on" : ""); }
 
@@ -192,6 +198,13 @@ export function renderHTML() {
     setToggle(this, on);
     api("config", { skipToday: on }).then(function(r){
       toast(r.config.skipToday ? "Hôm nay sẽ không tự động" : "Hôm nay tự động bình thường");
+    }).catch(function(e){ toast(e.message, true); load(); });
+  };
+  $("tgSlack").onclick = function(){
+    var on = !this.classList.contains("on");
+    setToggle(this, on);
+    api("config", { slackNotify: on }).then(function(r){
+      toast(r.config.slackNotify ? "Đã bật báo Slack" : "Đã tắt báo Slack");
     }).catch(function(e){ toast(e.message, true); load(); });
   };
 

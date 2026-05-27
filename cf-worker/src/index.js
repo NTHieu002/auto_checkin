@@ -27,12 +27,16 @@ function checkPin(request, env) {
 
 async function getConfig(env) {
   const raw = await env.SHIFT_KV.get(CONFIG_KEY);
-  if (!raw) return { autoEnabled: true, skipDates: [] };
+  if (!raw) return { autoEnabled: true, skipDates: [], slackNotify: true };
   try {
     const c = JSON.parse(raw);
-    return { autoEnabled: c.autoEnabled !== false, skipDates: c.skipDates || [] };
+    return {
+      autoEnabled: c.autoEnabled !== false,
+      skipDates: c.skipDates || [],
+      slackNotify: c.slackNotify !== false, // default on
+    };
   } catch {
-    return { autoEnabled: true, skipDates: [] };
+    return { autoEnabled: true, skipDates: [], slackNotify: true };
   }
 }
 async function saveConfig(env, c) {
@@ -59,7 +63,11 @@ async function handleStatus(env) {
     date,
     now: hhmm,
     assignments: enriched,
-    config: { autoEnabled: cfg.autoEnabled, skipToday: cfg.skipDates.includes(date) },
+    config: {
+      autoEnabled: cfg.autoEnabled,
+      skipToday: cfg.skipDates.includes(date),
+      slackNotify: cfg.slackNotify,
+    },
   };
 }
 
@@ -70,7 +78,15 @@ async function handleAction(env, action, assignmentId) {
   if (!assignments.length) return { error: "Không có shift hôm nay" };
   const a = assignments.find((x) => x.id === assignmentId) || assignments[0];
   const result = action === "checkin" ? await c.checkin(jwt, a) : await c.checkout(jwt, a);
-  return { ok: true, action, result };
+  let slack;
+  if (!result.skipped) {
+    const cfg = await getConfig(env);
+    if (cfg.slackNotify) {
+      slack = await c.notifySlack(a, action);
+      console.log(`[manual] slack ${action}`, JSON.stringify(slack));
+    }
+  }
+  return { ok: true, action, result, slack };
 }
 
 async function handleConfig(env, body) {
@@ -78,6 +94,7 @@ async function handleConfig(env, body) {
   const today = ictParts().date;
   cfg.skipDates = cfg.skipDates.filter((d) => d >= today); // prune past dates
   if (typeof body.autoEnabled === "boolean") cfg.autoEnabled = body.autoEnabled;
+  if (typeof body.slackNotify === "boolean") cfg.slackNotify = body.slackNotify;
   if (typeof body.skipToday === "boolean") {
     if (body.skipToday) {
       if (!cfg.skipDates.includes(today)) cfg.skipDates.push(today);
@@ -86,7 +103,14 @@ async function handleConfig(env, body) {
     }
   }
   await saveConfig(env, cfg);
-  return { ok: true, config: { autoEnabled: cfg.autoEnabled, skipToday: cfg.skipDates.includes(today) } };
+  return {
+    ok: true,
+    config: {
+      autoEnabled: cfg.autoEnabled,
+      skipToday: cfg.skipDates.includes(today),
+      slackNotify: cfg.slackNotify,
+    },
+  };
 }
 
 // Cron reconciliation: check in at shift start, check out at shift end.
@@ -113,9 +137,13 @@ async function runAuto(env) {
     if (nowMin >= checkinAt && nowMin < shiftEnd && st.state === "none") {
       const r = await c.checkin(jwt, a);
       console.log(`[auto] checkin ${a.shift_slot}`, JSON.stringify(r));
+      if (!r.skipped && cfg.slackNotify)
+        console.log(`[auto] slack checkin`, JSON.stringify(await c.notifySlack(a, "checkin")));
     } else if (nowMin >= checkoutAt && st.state === "open") {
       const r = await c.checkout(jwt, a);
       console.log(`[auto] checkout ${a.shift_slot}`, JSON.stringify(r));
+      if (!r.skipped && cfg.slackNotify)
+        console.log(`[auto] slack checkout`, JSON.stringify(await c.notifySlack(a, "checkout")));
     }
   }
 }

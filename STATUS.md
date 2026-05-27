@@ -1,6 +1,6 @@
 # Shift Auto — Trạng thái & Tiếp tục công việc
 
-Cập nhật: **2026-05-27 ~08:15 ICT**
+Cập nhật: **2026-05-27 ~14:35 ICT**
 
 ## Đang chạy ở đâu
 - **Web app + auto check-in/out** đã deploy trên **Cloudflare Worker `shift-auto`**.
@@ -11,9 +11,16 @@ Cập nhật: **2026-05-27 ~08:15 ICT**
 
 ## Kiến trúc
 - 1 Worker: phục vụ UI (`/`), API (`/api/status|checkin|checkout|config|login`) chặn bằng PIN, và cron tự động.
-- **KV `SHIFT_KV`** (id `9bc7acbba8a849759e729f1020d0d32a`): lưu `session` (refresh token xoay vòng) + `config` `{autoEnabled, skipDates}`.
+- **KV `SHIFT_KV`** (id `9bc7acbba8a849759e729f1020d0d32a`): lưu `session` (refresh token xoay vòng) + `config` `{autoEnabled, skipDates, slackNotify}` + `slack_action_id` (id server-action Slack đã cache).
 - **Secrets:** `EMAIL`, `PASSWORD`, `UI_PIN` — đặt qua `wrangler secret put`, không lưu trong repo.
 - **Vars** (trong wrangler.toml, public-safe): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `MEMBER_ID`.
+
+## Thông báo Slack (mirror web app)
+- Web Shift Manager thật: sau khi ghi `checkins`, nó gọi thêm 1 **Next.js Server Action `sendSlackCheckInNotification(name, role, "HH:00 - HH:00", "checkin"|"checkout")`** → bắn tin Slack. Ghi DB trực tiếp (như bot) **không** kích hoạt nó.
+- Worker giờ **tự gọi lại server action đó** sau mỗi check-in/out thành công (cả cron lẫn nút trên UI), để Slack khớp với web. Code: `notifySlack()` trong `src/shift.js`.
+- Cách hoạt động: dựng cookie phiên `@supabase/ssr` từ session của bot → POST `/dashboard/my-schedule` kèm header `Next-Action: <id>` + body `[name,role,slot,action]`. `<id>` **đổi mỗi lần app redeploy** nên worker **tự cào lại** id từ bundle public và cache ở KV `slack_action_id`; gửi lỗi thì tự cào lại 1 lần.
+- **Không chặn chấm công:** lỗi Slack chỉ log, không làm hỏng check-in/out.
+- **Công tắc:** toggle "Báo Slack" trên UI, hoặc `config.slackNotify` (mặc định bật).
 
 ## Lịch auto (cron UTC, ICT = +7), Thứ 2–Thứ 6
 | ICT | UTC cron | Hành động |

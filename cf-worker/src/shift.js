@@ -3,6 +3,17 @@
 
 const DEFAULT_URL = "https://qktvfncduxmoijzfqbdb.supabase.co";
 const SESSION_KEY = "session"; // KV key holding { refresh_token, ... }
+const SLACK_ACTION_KEY = "slack_action_id"; // cached Next.js server-action id
+const DEFAULT_APP_URL = "https://pf-schedule-dashboard.vercel.app";
+const SLACK_ACTION_NAME = "sendSlackCheckInNotification";
+
+// UTF-8 safe base64 (Workers btoa is Latin1-only); session JSON may contain unicode.
+function b64utf8(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
 
 // ICT (UTC+7, no DST). Workers run in UTC, so derive Vietnam wall-clock explicitly.
 export function ictParts(now = Date.now()) {
@@ -29,6 +40,9 @@ export function createClient(env) {
   const ANON = env.SUPABASE_ANON_KEY;
   const MEMBER_ID = env.MEMBER_ID;
   const KV = env.SHIFT_KV;
+  const REF = new URL(SUPA).host.split(".")[0]; // supabase project ref
+  const APP_URL = env.APP_URL || DEFAULT_APP_URL;
+  let session = null; // full auth session (for the Slack server-action cookie)
 
   function authHeaders(jwt, write = false) {
     const h = {
@@ -64,6 +78,7 @@ export function createClient(env) {
     });
     if (!r.ok) return null; // token rotated out / revoked -> caller falls back to password
     const data = await r.json();
+    session = data;
     await persist(data);
     return data.access_token;
   }
@@ -78,6 +93,7 @@ export function createClient(env) {
     });
     if (!r.ok) throw new Error(`Password login failed: ${r.status} ${await r.text()}`);
     const data = await r.json();
+    session = data;
     await persist(data);
     return data.access_token;
   }
@@ -90,7 +106,7 @@ export function createClient(env) {
     const today = ictParts().date;
     const url =
       `${REST}/shift_assignments` +
-      `?select=id,shift_slot,is_sl,role,status` +
+      `?select=id,shift_slot,is_sl,role,status,members!member_id(name)` +
       `&member_id=eq.${MEMBER_ID}` +
       `&shift_date=eq.${today}` +
       `&order=shift_slot.asc`;
@@ -143,5 +159,94 @@ export function createClient(env) {
     return { skipped: false, row: (await r.json())[0] };
   }
 
-  return { getAccessToken, getTodayAssignments, getCheckinState, checkin, checkout };
+  // ===== Slack notification (mirrors the web app's post-action server call) =====
+
+  // @supabase/ssr auth cookie: sb-<ref>-auth-token = "base64-"+b64(session JSON),
+  // split into .0/.1 chunks if long. The server action reads it to authenticate.
+  function buildAuthCookie() {
+    if (!session) return null;
+    const name = `sb-${REF}-auth-token`;
+    const payload = "base64-" + b64utf8(JSON.stringify(session));
+    const CHUNK = 3180;
+    if (payload.length <= CHUNK) return `${name}=${payload}`;
+    const parts = [];
+    for (let i = 0, p = 0; p < payload.length; i++, p += CHUNK)
+      parts.push(`${name}.${i}=${payload.slice(p, p + CHUNK)}`);
+    return parts.join("; ");
+  }
+
+  // The action id is build-specific (changes when the app redeploys); scrape it
+  // from the public bundle so we self-heal instead of hard-coding a stale id.
+  async function discoverActionId(cookie) {
+    const html = await (
+      await fetch(`${APP_URL}/dashboard/my-schedule`, {
+        headers: { Cookie: cookie, "User-Agent": "Mozilla/5.0" },
+        redirect: "manual",
+      })
+    ).text();
+    const paths = [
+      ...new Set([...html.matchAll(/\/_next\/static\/[^"'\\]+\.js/g)].map((m) => m[0])),
+    ];
+    const re = new RegExp('"([0-9a-f]{20,})"[^"]*"' + SLACK_ACTION_NAME + '"');
+    for (const p of paths) {
+      const js = await (await fetch(`${APP_URL}${p}`)).text();
+      if (!js.includes(SLACK_ACTION_NAME)) continue;
+      const m = re.exec(js);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  async function postAction(cookie, id, args) {
+    const r = await fetch(`${APP_URL}/dashboard/my-schedule`, {
+      method: "POST",
+      headers: {
+        Cookie: cookie,
+        "Next-Action": id,
+        "Content-Type": "text/plain;charset=UTF-8",
+        Accept: "text/x-component",
+        "User-Agent": "Mozilla/5.0",
+      },
+      body: JSON.stringify(args),
+    });
+    const txt = await r.text();
+    // Success looks like a flight stream ending in "<row>:true".
+    return { ok: r.ok && /(?:^|\n)\d+:true\b/.test(txt), status: r.status, body: txt.slice(0, 160) };
+  }
+
+  // Fire the Slack notification for a completed action. Never throws —
+  // a failed notification must not affect attendance recording.
+  async function notifySlack(assignment, action) {
+    try {
+      const name = assignment?.members?.name;
+      const role = assignment?.role || (assignment?.is_sl ? "SL" : "FL/TS");
+      const slotRaw = assignment?.shift_slot;
+      if (!name || !role || !slotRaw) return { sent: false, reason: "missing-fields" };
+      const cookie = buildAuthCookie();
+      if (!cookie) return { sent: false, reason: "no-session" };
+      const args = [name, role, String(slotRaw).replace("-", ":00 - ") + ":00", action];
+
+      let id = await KV.get(SLACK_ACTION_KEY);
+      const fromCache = !!id;
+      if (!id) {
+        id = await discoverActionId(cookie);
+        if (id) await KV.put(SLACK_ACTION_KEY, id);
+      }
+      if (!id) return { sent: false, reason: "action-id-not-found" };
+
+      let res = await postAction(cookie, id, args);
+      if (!res.ok && fromCache) {
+        const fresh = await discoverActionId(cookie); // stale (app redeployed)? retry once
+        if (fresh && fresh !== id) {
+          await KV.put(SLACK_ACTION_KEY, fresh);
+          res = await postAction(cookie, fresh, args);
+        }
+      }
+      return { sent: res.ok, ...res };
+    } catch (e) {
+      return { sent: false, reason: "error", error: String(e?.message || e) };
+    }
+  }
+
+  return { getAccessToken, getTodayAssignments, getCheckinState, checkin, checkout, notifySlack };
 }
