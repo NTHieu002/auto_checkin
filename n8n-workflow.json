@@ -1,0 +1,527 @@
+{
+  "name": "Shift Manager Auto Check-in/Check-out",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "trigger-checkin",
+      "name": "Cron Check-in 7AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 11 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "trigger-checkout",
+      "name": "Cron Check-out 11AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Load refresh_token from workflow static data\nconst sd = $getWorkflowStaticData('global');\nconst refresh = sd.refresh_token || $env.INITIAL_REFRESH_TOKEN;\nif (!refresh) throw new Error('Missing refresh_token: set INITIAL_REFRESH_TOKEN in env');\nreturn [{ json: { refresh_token: refresh, action: 'checkin' } }];"
+      },
+      "id": "load-token-in",
+      "name": "Load Refresh Token (in)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sd = $getWorkflowStaticData('global');\nconst refresh = sd.refresh_token || $env.INITIAL_REFRESH_TOKEN;\nif (!refresh) throw new Error('Missing refresh_token');\nreturn [{ json: { refresh_token: refresh, action: 'checkout' } }];"
+      },
+      "id": "load-token-out",
+      "name": "Load Refresh Token (out)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/token?grant_type=refresh_token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"refresh_token\": \"{{ $json.refresh_token }}\" }",
+        "options": {}
+      },
+      "id": "refresh-in",
+      "name": "Refresh Token (in)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/token?grant_type=refresh_token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"refresh_token\": \"{{ $json.refresh_token }}\" }",
+        "options": {}
+      },
+      "id": "refresh-out",
+      "name": "Refresh Token (out)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Save rotated refresh_token to static data\nconst sd = $getWorkflowStaticData('global');\nsd.refresh_token = $json.refresh_token;\nsd.expires_at = $json.expires_at;\nreturn [{ json: { access_token: $json.access_token } }];"
+      },
+      "id": "save-token-in",
+      "name": "Save New Refresh Token (in)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sd = $getWorkflowStaticData('global');\nsd.refresh_token = $json.refresh_token;\nsd.expires_at = $json.expires_at;\nreturn [{ json: { access_token: $json.access_token } }];"
+      },
+      "id": "save-token-out",
+      "name": "Save New Refresh Token (out)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/shift_assignments?select=id,shift_slot,is_sl,role,status&member_id=eq.{{ $env.MEMBER_ID }}&shift_date=eq.{{ $now.format('yyyy-MM-dd') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-shift-in",
+      "name": "Get Today Shift (in)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/shift_assignments?select=id,shift_slot,is_sl,role,status&member_id=eq.{{ $env.MEMBER_ID }}&shift_date=eq.{{ $now.format('yyyy-MM-dd') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-shift-out",
+      "name": "Get Today Shift (out)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build check-in payload\nconst access_token = $node['Save New Refresh Token (in)'].json.access_token;\nconst arr = $json;\nif (!Array.isArray(arr) || arr.length === 0) throw new Error('Không có shift hôm nay');\nconst a = arr.find(x => x.status === 'scheduled' || x.status === 'checked_in') || arr[0];\nconst role = a.role || (a.is_sl ? 'SL' : 'FL/TS');\nreturn [{ json: {\n  access_token,\n  assignment_id: a.id,\n  body: {\n    assignment_id: a.id,\n    member_id: $env.MEMBER_ID,\n    checkin_time: new Date().toISOString(),\n    checkin_text: null,\n    role\n  }\n}}];"
+      },
+      "id": "build-checkin",
+      "name": "Build Check-in Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/checkins",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "id": "do-checkin",
+      "name": "POST /checkins",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find open checkin for today's assignment\nconst access_token = $node['Save New Refresh Token (out)'].json.access_token;\nconst arr = $json;\nif (!Array.isArray(arr) || arr.length === 0) throw new Error('Không có shift hôm nay');\nconst a = arr.find(x => x.status === 'checked_in') || arr[0];\nreturn [{ json: { access_token, assignment_id: a.id } }];"
+      },
+      "id": "build-checkout-step1",
+      "name": "Pick Assignment (out)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/checkins?select=id,checkin_time,checkout_time&assignment_id=eq.{{ $json.assignment_id }}&checkout_time=is.null&order=checkin_time.desc&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "find-open-checkin",
+      "name": "Find Open Check-in",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const arr = $json;\nif (!Array.isArray(arr) || arr.length === 0) throw new Error('Không có check-in đang mở');\nconst access_token = $node['Pick Assignment (out)'].json.access_token;\nreturn [{ json: {\n  access_token,\n  checkin_id: arr[0].id,\n  body: { checkout_time: new Date().toISOString(), checkout_text: null }\n}}];"
+      },
+      "id": "build-checkout-body",
+      "name": "Build Check-out Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/checkins?id=eq.{{ $json.checkin_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "id": "do-checkout",
+      "name": "PATCH /checkins",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Cron Check-in 7AM": {
+      "main": [
+        [
+          {
+            "node": "Load Refresh Token (in)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron Check-out 11AM": {
+      "main": [
+        [
+          {
+            "node": "Load Refresh Token (out)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Refresh Token (in)": {
+      "main": [
+        [
+          {
+            "node": "Refresh Token (in)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Refresh Token (out)": {
+      "main": [
+        [
+          {
+            "node": "Refresh Token (out)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Token (in)": {
+      "main": [
+        [
+          {
+            "node": "Save New Refresh Token (in)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Token (out)": {
+      "main": [
+        [
+          {
+            "node": "Save New Refresh Token (out)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save New Refresh Token (in)": {
+      "main": [
+        [
+          {
+            "node": "Get Today Shift (in)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save New Refresh Token (out)": {
+      "main": [
+        [
+          {
+            "node": "Get Today Shift (out)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Today Shift (in)": {
+      "main": [
+        [
+          {
+            "node": "Build Check-in Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Today Shift (out)": {
+      "main": [
+        [
+          {
+            "node": "Pick Assignment (out)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Check-in Body": {
+      "main": [
+        [
+          {
+            "node": "POST /checkins",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Assignment (out)": {
+      "main": [
+        [
+          {
+            "node": "Find Open Check-in",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Open Check-in": {
+      "main": [
+        [
+          {
+            "node": "Build Check-out Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Check-out Body": {
+      "main": [
+        [
+          {
+            "node": "PATCH /checkins",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "shift-auto-workflow"
+  },
+  "tags": [
+    {
+      "name": "shift-manager"
+    }
+  ]
+}

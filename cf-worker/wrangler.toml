@@ -1,0 +1,27 @@
+name = "shift-auto"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Public-safe values (anon key is meant to be exposed; member id is just a UUID).
+# Secrets EMAIL, PASSWORD, UI_PIN are set via `wrangler secret put` (never in this file).
+[vars]
+SUPABASE_URL = "https://qktvfncduxmoijzfqbdb.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrdHZmbmNkdXhtb2lqemZxYmRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMzYxMDIsImV4cCI6MjA5NDkxMjEwMn0.l8m0JA3CKo66BXISjWQbUQwTxwKIguj9EUaEmQTZ0LY"
+MEMBER_ID = "135fba41-2c8f-45e4-be00-7ef837930ed0"
+
+# Cron is UTC; Vietnam is UTC+7. Mon–Fri. Times below are the exact action moments
+# (check-in 5' before shift start, check-out 1' after shift end). The worker's
+# offset logic (CHECKIN_LEAD_MIN/CHECKOUT_LAG_MIN) must stay in sync with these.
+#   55 0  -> ICT 07:55  morning check-in   (shift 8-11 start 08:00 − 5')
+#   1  4  -> ICT 11:01  morning check-out  (shift 8-11 end   11:00 + 1')
+#   55 6  -> ICT 13:55  afternoon check-in (shift 14-17 start 14:00 − 5')
+#   1  10 -> ICT 17:01  afternoon check-out(shift 14-17 end   17:00 + 1')
+[triggers]
+crons = ["55 0 * * 1-5", "1 4 * * 1-5", "55 6 * * 1-5", "1 10 * * 1-5"]
+
+[[kv_namespaces]]
+binding = "SHIFT_KV"
+id = "9bc7acbba8a849759e729f1020d0d32a"
+
+[observability]
+enabled = true

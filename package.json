@@ -1,0 +1,16 @@
+{
+  "name": "shift-manager-auto",
+  "version": "1.0.0",
+  "description": "Auto check-in/check-out cho Shift Manager qua Supabase REST API",
+  "type": "module",
+  "main": "auto-shift.js",
+  "scripts": {
+    "checkin": "node auto-shift.js checkin",
+    "checkout": "node auto-shift.js checkout",
+    "status": "node auto-shift.js status"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "private": true
+}
