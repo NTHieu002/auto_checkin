@@ -1,155 +1,92 @@
 # Shift Manager Auto Check-in/Check-out
 
-Auto check-in / check-out cho `pf-schedule-dashboard.vercel.app` qua Supabase REST API.
+Tự động check-in / check-out trên [Shift Manager](https://pf-schedule-dashboard.vercel.app) bằng cách gọi thẳng Supabase REST API của app — kèm **thông báo Slack** giống hệt khi bấm trên web.
 
-## 📋 Yêu cầu
+> 📌 Trạng thái vận hành thực tế (link, lịch cron, KV id, sự cố đã/đang xử lý) luôn nằm trong **[`STATUS.md`](STATUS.md)**.
 
-- Node.js >= 18 (vì dùng `fetch` built-in, không cần `node-fetch`)
-- Tài khoản đã đăng nhập trên Shift Manager để lấy được refresh token
+## Có gì trong repo
 
-## 🚀 Cài đặt
+Ba cách cài đặt cùng một logic, cùng nói chuyện với một Supabase project, phải đồng bộ hành vi với nhau:
 
-### Bước 1: Lấy các giá trị cần thiết
+| Thư mục / file | Vai trò |
+|---|---|
+| **`cf-worker/`** | **Bản đang chạy thật** — Cloudflare Worker `shift-auto`: UI mobile chặn PIN + API + cron tự động (T2–T6) + bắn Slack. |
+| `auto-shift.js` | CLI Node.js 1 file — giữ làm **backup** chạy tay. |
+| `n8n-workflow.json` | Bản dựng lại bằng n8n workflow (cron-triggered). |
 
-Mở trang [Shift Manager](https://pf-schedule-dashboard.vercel.app/dashboard/my-schedule) trong Chrome/Edge, đăng nhập, rồi mở DevTools (F12).
+## 1) Cloudflare Worker (chính)
 
-**a) Lấy SUPABASE_ANON_KEY:**
-1. Tab **Network**, reload trang
-2. Click bất kỳ request nào tới `qktvfncduxmoijzfqbdb.supabase.co`
-3. Phần **Request Headers**, copy giá trị header `apikey` (chuỗi JWT bắt đầu `eyJhbGc...`)
+Worker phục vụ:
+- **UI** tại `/` — trang mobile, vào bằng **PIN** (secret `UI_PIN`).
+- **API** `/api/status|checkin|checkout|config|login` (header `x-pin`).
+- **Cron** tự check-in/out theo giờ ca, **T2–T6** (giờ ICT, cron trong `wrangler.toml` để UTC):
 
-**b) Lấy REFRESH_TOKEN:**
-1. Tab **Application** → **Cookies** → chọn `https://pf-schedule-dashboard.vercel.app`
-2. Tìm cookie tên `sb-qktvfncduxmoijzfqbdb-auth-token`
-3. Copy value (bắt đầu bằng `base64-...`)
-4. Mở Console, paste lệnh sau (thay `<VALUE>` bằng giá trị cookie):
-   ```js
-   JSON.parse(atob('<VALUE>'.replace('base64-','')))
-   ```
-5. Lấy field `refresh_token` từ kết quả
+  | ICT | Hành động |
+  |---|---|
+  | 07:55 | check-in ca sáng (8–11) |
+  | 11:01 | check-out ca sáng |
+  | 13:55 | check-in ca chiều (14–17) |
+  | 17:01 | check-out ca chiều |
 
-**c) Lấy MEMBER_ID:** mặc định đã có sẵn trong `.env.example`, nhưng nếu cần xác nhận, đó chính là field `user.id` trong cùng object JSON ở bước b.
+  Logic idempotent & tự sửa: check-in khi `now ∈ [giờ-bắt-đầu − 5', giờ-kết-thúc)` và chưa check-in; check-out khi `now ≥ giờ-kết-thúc + 1'` và đang mở. Hằng số `CHECKIN_LEAD_MIN`/`CHECKOUT_LAG_MIN` trong `src/index.js` **phải khớp** cron trong `wrangler.toml`.
 
-### Bước 2: Cấu hình
+### Cấu hình & deploy
 
 ```bash
-cp .env.example .env
-# Mở .env, điền 3 giá trị: SUPABASE_ANON_KEY, MEMBER_ID, INITIAL_REFRESH_TOKEN
+cd cf-worker
+npm i                       # cài wrangler
+npx wrangler secret put EMAIL
+npx wrangler secret put PASSWORD     # mật khẩu Shift Manager (để worker tự login)
+npx wrangler secret put UI_PIN       # PIN vào UI
+npx wrangler deploy
 ```
 
-### Bước 3: Load env và chạy thử
+- **Vars public-safe** (trong `wrangler.toml`): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `MEMBER_ID`.
+- **KV `SHIFT_KV`** lưu: `session` (refresh token xoay vòng), `config` `{autoEnabled, skipDates, slackNotify}`, `slack_action_id` (id server-action Slack đã cache).
+- Xem log: Cloudflare dashboard → Workers & Pages → `shift-auto` → **Observability**, hoặc live: `npx wrangler tail`.
 
-**Linux/macOS:**
+## 2) Thông báo Slack
+
+Web Shift Manager thật: sau khi ghi `checkins`, nó gọi thêm 1 **Next.js Server Action `sendSlackCheckInNotification`** → bắn tin Slack (dạng *“Member: X has checked in / Role / Shift”*). Ghi DB trực tiếp (như bot) **không** kích hoạt nó, nên worker **tự gọi lại** server action đó sau mỗi check-in/out thành công để Slack khớp với web.
+
+- Hàm: `notifySlack()` trong `cf-worker/src/shift.js`. Dựng cookie phiên `@supabase/ssr` từ session của bot → POST `/dashboard/my-schedule` kèm `Next-Action: <id>` + body `[name, role, slot, action]`.
+- `<id>` đổi mỗi lần app upstream redeploy → worker **tự cào lại** từ bundle public và cache ở KV `slack_action_id`; gửi lỗi thì cào lại 1 lần.
+- **Không chặn chấm công:** lỗi Slack chỉ log. Tắt/bật bằng toggle “Báo Slack” trên UI hoặc `config.slackNotify` (mặc định bật).
+
+## 3) CLI local (backup)
+
 ```bash
-set -a && source .env && set +a
-node auto-shift.js status      # Kiểm tra shift hôm nay
+node auto-shift.js status      # Xem trạng thái ca hôm nay
+node auto-shift.js checkin     # Check-in (idempotent)
+node auto-shift.js checkout    # Check-out
 ```
 
-**Windows PowerShell:**
-```powershell
-Get-Content .env | ForEach-Object { if ($_ -match '^(\w+)=(.*)$') { Set-Item -Path "env:$($matches[1])" -Value $matches[2] } }
-node auto-shift.js status
-```
+Cần Node >= 18 (dùng `fetch` built-in), không deps, không build. Nạp env trước khi chạy:
 
-Hoặc đơn giản hơn: cài `dotenv-cli`:
 ```bash
 npm i -g dotenv-cli
 dotenv -e .env -- node auto-shift.js status
 ```
 
-## 🎯 Sử dụng
+Cấu hình: copy `env.example` → `.env`, điền `SUPABASE_ANON_KEY`, `MEMBER_ID`, `EMAIL`, `PASSWORD`. Worker/CLI tự login bằng EMAIL/PASSWORD nên **không bắt buộc** refresh token ban đầu; nếu muốn vẫn có thể đặt `INITIAL_REFRESH_TOKEN`.
 
-```bash
-node auto-shift.js checkin     # Check-in cho shift hôm nay
-node auto-shift.js checkout    # Check-out cho shift hôm nay
-node auto-shift.js status      # Xem trạng thái shift hôm nay
-```
+### Auth (chung cho cả worker và CLI)
 
-Script tự xử lý:
-- ✅ Tự refresh access token mỗi lần chạy
-- ✅ Tự lưu refresh_token mới (vì Supabase rotate) vào `.shift-state.json`
-- ✅ Idempotent: chạy `checkin` 2 lần không tạo 2 record
-- ✅ Tự pick shift đang active nếu hôm nay có nhiều shift
-- ✅ Tự suy ra `role` (`SL` nếu là Shift Leader, mặc định `FL/TS`)
-
-## ⏰ Schedule tự động
-
-### Linux/macOS (cron)
-
-`crontab -e`:
-```cron
-# Check-in 7:00 sáng T2-T6
-0 7  * * 1-5  cd /path/to/shift-auto && dotenv -e .env -- node auto-shift.js checkin  >> shift.log 2>&1
-
-# Check-out 11:00 sáng T2-T6
-0 11 * * 1-5  cd /path/to/shift-auto && dotenv -e .env -- node auto-shift.js checkout >> shift.log 2>&1
-```
-
-### Windows (Task Scheduler)
-
-Tạo task chạy lệnh:
-```
-"C:\Program Files\nodejs\node.exe" "C:\path\to\auto-shift.js" checkin
-```
-Set Environment Variables trong task hoặc dùng wrapper `.bat` load `.env` trước.
-
-### Docker
-
-`Dockerfile`:
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY auto-shift.js package.json ./
-ENTRYPOINT ["node", "auto-shift.js"]
-```
-
-Chạy:
-```bash
-docker build -t shift-auto .
-docker run --rm --env-file .env -v $(pwd):/app/state shift-auto checkin
-```
+Refresh-first, fallback password: thử refresh token đã lưu trước; hỏng/không có thì login `grant_type=password` bằng `EMAIL`/`PASSWORD` để tạo phiên riêng (đây là thứ giúp cron chạy không cần người). Supabase **xoay vòng** refresh token mỗi lần refresh nên token mới được lưu lại sau mỗi lần auth thành công.
 
 ## 🔒 Bảo mật
 
-- **Không commit** `.env` và `.shift-state.json` lên Git (đã có trong `.gitignore` chưa? tự tạo nhé)
-- Refresh token cho phép đăng nhập tài khoản bạn, hãy bảo vệ như password
-- Anon key có thể public, không sao nếu lộ
-- File `.shift-state.json` được lưu với chmod 600 (chỉ owner đọc được)
+- Secret nằm ở `.env` (CLI), `cf-worker/.dev.vars` (dev local), và Cloudflare Worker secrets (prod) — **không** commit. `.env`, `.shift-state.json`, `.dev.vars`, `.wrangler/` đều trong `.gitignore`.
+- **Repo này public** → giữ secret ngoài các file được track. Anon key + `MEMBER_ID` thì public được.
+- Nếu lỡ để token thật vào file được track hoặc git history → **đổi/rotate** ngay.
 
-## 🐛 Troubleshooting
-
-**`Refresh token failed: 400`**
-→ Refresh token đã hết hạn hoặc đã được rotate. Đăng nhập lại trên browser, lấy refresh_token mới, xóa `.shift-state.json`, cập nhật `INITIAL_REFRESH_TOKEN` trong `.env`.
-
-**`Không có shift nào cho hôm nay`**
-→ Đúng vậy, không có việc gì để làm. Script exit bình thường.
-
-**`Check-in failed: 403`**
-→ RLS chặn. Có thể shift đã bị cover, hoặc `MEMBER_ID` không match với `sub` trong JWT.
-
-**`Check-out failed: không tìm thấy check-in đang mở`**
-→ Chưa check-in, hoặc đã check-out rồi. Chạy `status` để kiểm tra.
-
-## 📂 Cấu trúc file
-
-```
-shift-auto/
-├── auto-shift.js          # Script chính
-├── package.json
-├── .env.example           # Template config
-├── .env                   # Config thật (KHÔNG commit)
-├── .shift-state.json      # State auto-generated (KHÔNG commit)
-└── README.md
-```
-
-## 📡 API endpoints được sử dụng
+## 📡 Supabase REST endpoints
 
 | Endpoint | Method | Mục đích |
 |---|---|---|
-| `/auth/v1/token?grant_type=refresh_token` | POST | Refresh access token |
-| `/rest/v1/shift_assignments` | GET | Lấy shift hôm nay |
-| `/rest/v1/checkins` | GET | Tìm check-in đang mở |
-| `/rest/v1/checkins` | POST | Tạo check-in mới |
-| `/rest/v1/checkins?id=eq.X` | PATCH | Update check-out time |
-
-Chi tiết schema và payload đã được document đầy đủ trong cuộc chat tạo ra repo này.
+| `/auth/v1/token?grant_type=password` | POST | Login email+password → phiên mới |
+| `/auth/v1/token?grant_type=refresh_token` | POST | Đổi refresh token lấy access token (xoay vòng refresh token) |
+| `/rest/v1/shift_assignments` | GET | Ca hôm nay của `member_id` (+ embed `members!member_id(name)` cho Slack) |
+| `/rest/v1/checkins` | GET | Tìm check-in đang mở / mới nhất |
+| `/rest/v1/checkins` | POST | Tạo check-in (lưu ý: bảng **không có** cột `role`) |
+| `/rest/v1/checkins?id=eq.X` | PATCH | Cập nhật `checkout_time` |
