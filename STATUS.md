@@ -1,6 +1,6 @@
 # Shift Auto — Trạng thái & Tiếp tục công việc
 
-Cập nhật: **2026-05-27 ~14:35 ICT**
+Cập nhật: **2026-05-28 ~14:00 ICT**
 
 ## Đang chạy ở đâu
 - **Web app + auto check-in/out** đã deploy trên **Cloudflare Worker `shift-auto`**.
@@ -21,6 +21,7 @@ Cập nhật: **2026-05-27 ~14:35 ICT**
 - Cách hoạt động: dựng cookie phiên `@supabase/ssr` từ session của bot → POST `/dashboard/my-schedule` kèm header `Next-Action: <id>` + body `[name,role,slot,action]`. `<id>` **đổi mỗi lần app redeploy** nên worker **tự cào lại** id từ bundle public và cache ở KV `slack_action_id`; gửi lỗi thì tự cào lại 1 lần.
 - **Không chặn chấm công:** lỗi Slack chỉ log, không làm hỏng check-in/out.
 - **Công tắc:** toggle "Báo Slack" trên UI, hoặc `config.slackNotify` (mặc định bật).
+- ✅ **Đã verify LIVE 28/05:** auto check-in 13:55 ca chiều (14–17) ghi DB **và** bắn Slack thành công trên cron thật (đường refresh-token). Tin Slack đúng dạng *"Member: Hew has checked in / Role: TS / Shift: 14:00 - 17:00"*.
 - ⚠️ **Bug đã fix (28/05, commit `93a0df3`):** Slack **không gửi** dù check-in/out DB vẫn OK. Nguyên nhân thật: `notifySlack` dựng cookie từ biến closure `session`, nhưng `tryRefresh()` lại khai báo `let session` cục bộ → `session = data` gán nhầm vào biến cục bộ, để closure `session` = null. Đường thường (refresh token còn tốt) không chạy `passwordLogin` (nơi gán đúng) → cookie null → `no-session` → không gửi. Sửa: đổi biến cục bộ thành `stored`. Đã verify trong worker: `hasSession:true`, cookie xác thực (page 200).
 - Action id hiện tại đã cache ở KV remote: `78acd24ea3ce998c554a3b7631e24299375f731bd1`. (Pre-cache id giúp cron khỏi phải cào ~18 file JS mỗi lần — vẫn nên giữ.)
 - ⚠️ **Khi chủ app redeploy:** id đổi → tin Slack lỗi 1 lần, self-heal tự cào lại id mới. Nếu Slack im sau khi app upstream đổi: cào lại id thủ công và `wrangler kv key put --remote --namespace-id 9bc7acbba8a849759e729f1020d0d32a slack_action_id <id-mới>`.
