@@ -64,21 +64,21 @@ export function createClient(env) {
   async function tryRefresh() {
     const raw = await KV.get(SESSION_KEY);
     if (!raw) return null;
-    let session;
+    let stored;
     try {
-      session = JSON.parse(raw);
+      stored = JSON.parse(raw);
     } catch {
       return null;
     }
-    if (!session.refresh_token) return null;
+    if (!stored.refresh_token) return null;
     const r = await fetch(`${AUTH}/token?grant_type=refresh_token`, {
       method: "POST",
       headers: { apikey: ANON, "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: session.refresh_token }),
+      body: JSON.stringify({ refresh_token: stored.refresh_token }),
     });
     if (!r.ok) return null; // token rotated out / revoked -> caller falls back to password
     const data = await r.json();
-    session = data;
+    session = data; // closure session (used to build the Slack auth cookie)
     await persist(data);
     return data.access_token;
   }
