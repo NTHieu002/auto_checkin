@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Automates check-in/check-out on the Shift Manager app (`pf-schedule-dashboard.vercel.app`) by talking to its Supabase backend's REST API directly. Three implementations of the same logic, all hitting the same Supabase project and meant to stay behaviorally in sync:
 
-- **`cf-worker/`** — the **live deployment**: a Cloudflare Worker (`shift-auto`) serving a PIN-gated mobile UI, a small JSON API, and cron triggers that auto check-in/out Mon–Fri. This is what actually runs unattended. See `STATUS.md` for live operational state (URLs, KV ids, cron schedule, known issues).
+- **`cf-worker/`** — the **live deployment**: a Cloudflare Worker (`shift-auto`) serving a PIN-gated mobile UI, a small JSON API, and a scheduled reconciler that auto check-in/out Mon–Fri (driven by an external `/cron` pinger since Cloudflare cron proved unreliable — see Worker section). This is what actually runs unattended. See `STATUS.md` for live operational state (URLs, KV ids, schedule, known issues).
 - **`auto-shift.js`** — the original single-file Node.js CLI, kept as a local **backup**.
 - **`n8n-workflow.json`** — a parallel reimplementation as an importable n8n workflow (cron-triggered).
 
@@ -42,12 +42,13 @@ The whole flow lives in `auto-shift.js` `main()`: load state → refresh access 
 
 ## Cloudflare Worker (`cf-worker/`) — the live deployment
 
-Same logic as `auto-shift.js`, restructured for Workers. Three entry points in `src/index.js`: `fetch` (UI at `/`, JSON API under `/api/*` gated by the `UI_PIN` secret) and `scheduled` (cron → `runAuto`). `src/shift.js` is the Supabase client; `src/ui.js` is the single-page UI string.
+Same logic as `auto-shift.js`, restructured for Workers. Entry points in `src/index.js`: `fetch` (UI at `/`; JSON API under `/api/*` gated by the `UI_PIN` secret; **`/cron` external trigger** gated by the `CRON_KEY` secret → `runAuto`) and `scheduled` (Cloudflare cron → `runAuto`). `src/shift.js` is the Supabase client; `src/ui.js` is the single-page UI string.
 
 - **Auth & session:** same refresh-first / password-fallback as the CLI, but the rotating refresh token lives in **KV** (`SHIFT_KV`, key `session`) instead of a file. `createClient()` keeps the **full auth session in a closure variable `session`** (not just the token) because the Slack cookie needs it. ⚠️ Don't shadow that variable — `tryRefresh()` uses a *separate* local `stored` for the KV blob precisely so `session = data` reaches the closure (a shadow bug here silently disabled Slack while DB writes kept working).
-- **Cron reconciliation (`runAuto`):** idempotent and self-correcting — check in when `now ∈ [start−CHECKIN_LEAD_MIN, end)` and not yet checked in; check out when `now ≥ end+CHECKOUT_LAG_MIN` and a check-in is open. Times are derived in ICT (`ictParts`). `CHECKIN_LEAD_MIN`/`CHECKOUT_LAG_MIN` **must stay in sync** with the cron times in `wrangler.toml`.
+- **Cron reconciliation (`runAuto`):** idempotent and self-correcting — check in when `now ∈ [start−CHECKIN_LEAD_MIN, end)` and not yet checked in; check out when `now ≥ end+CHECKOUT_LAG_MIN` and a check-in is open. Times are derived in ICT (`ictParts`). It returns a `{date, now, actions[]}` summary (surfaced over `/cron`, since Cloudflare logs aren't queryable via API on this account). `CHECKIN_LEAD_MIN`/`CHECKOUT_LAG_MIN` define the **exact action instants**; the trigger just has to fire often enough to land inside each window.
+- **Triggering is dual + redundant.** Cloudflare free-tier cron proved unreliable (29/05: it fired *zero* times all day — verified by a ~40-min live `wrangler tail` showing no `scheduled` events while the schedule was registered and the worker healthy). So the **primary** trigger is now an **external scheduler (cron-job.org) GETting `/cron?key=<CRON_KEY>` every ~5 min**; the Cloudflare cron (`*/5 0-11 * * 1-5`, ~07:00–18:55 ICT Mon–Fri) is kept only as best-effort backup. Because `runAuto` is idempotent, firing every 5 min from either source is safe — the first fire in a window acts, the rest skip.
 - **Config in KV** (`config`): `{ autoEnabled, skipDates, slackNotify }`, all default-on; surfaced/toggled via `/api/config` and the UI switches.
-- **Vars vs secrets:** public-safe values (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `MEMBER_ID`) are in `wrangler.toml`; `EMAIL`, `PASSWORD`, `UI_PIN` are Worker secrets. Deploy with `npx wrangler deploy` from `cf-worker/`.
+- **Vars vs secrets:** public-safe values (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `MEMBER_ID`) are in `wrangler.toml`; `EMAIL`, `PASSWORD`, `UI_PIN`, `CRON_KEY` are Worker secrets. Deploy with `npx wrangler deploy` from `cf-worker/`.
 
 ## Slack notification
 

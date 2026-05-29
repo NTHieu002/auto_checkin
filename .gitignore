@@ -4,3 +4,5 @@ node_modules/
 *.log
 .dev.vars
 .wrangler/
+.cron-key.txt
+cf-worker/.cron-key.txt

@@ -9,15 +9,18 @@ SUPABASE_URL = "https://qktvfncduxmoijzfqbdb.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrdHZmbmNkdXhtb2lqemZxYmRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMzYxMDIsImV4cCI6MjA5NDkxMjEwMn0.l8m0JA3CKo66BXISjWQbUQwTxwKIguj9EUaEmQTZ0LY"
 MEMBER_ID = "135fba41-2c8f-45e4-be00-7ef837930ed0"
 
-# Cron is UTC; Vietnam is UTC+7. Mon–Fri. Times below are the exact action moments
-# (check-in 5' before shift start, check-out 1' after shift end). The worker's
-# offset logic (CHECKIN_LEAD_MIN/CHECKOUT_LAG_MIN) must stay in sync with these.
-#   55 0  -> ICT 07:55  morning check-in   (shift 8-11 start 08:00 − 5')
-#   1  4  -> ICT 11:01  morning check-out  (shift 8-11 end   11:00 + 1')
-#   55 6  -> ICT 13:55  afternoon check-in (shift 14-17 start 14:00 − 5')
-#   1  10 -> ICT 17:01  afternoon check-out(shift 14-17 end   17:00 + 1')
+# Cron is UTC; Vietnam is UTC+7. Mon–Fri. Cloudflare free-tier cron is best-effort
+# (fires can be delayed many minutes or dropped). So instead of firing once at each
+# exact action moment, we fire EVERY 5 MINUTES across the working span and let runAuto
+# reconcile idempotently: the first fire inside a window performs the action, the rest
+# skip. A dropped/late fire no longer matters as long as one fire in the window lands.
+#   */5 0-11 -> every 5' during UTC 00:00–11:55  (ICT 07:00–18:55)
+# Covers morning check-in ~07:55 / check-out ~11:01 and afternoon check-in ~13:55 /
+# check-out ~17:01, each with many retries. The exact action instants are defined by
+# CHECKIN_LEAD_MIN/CHECKOUT_LAG_MIN in src/index.js, not by the cron minute.
+# NOTE: if shift hours ever move outside ~07:00–19:00 ICT, widen this hour range.
 [triggers]
-crons = ["55 0 * * 1-5", "1 4 * * 1-5", "55 6 * * 1-5", "1 10 * * 1-5"]
+crons = ["*/5 0-11 * * 1-5"]
 
 [[kv_namespaces]]
 binding = "SHIFT_KV"

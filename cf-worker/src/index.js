@@ -3,8 +3,11 @@ import { renderHTML } from "./ui.js";
 
 const CONFIG_KEY = "config";
 
-// Auto timing offsets (minutes). Keep in sync with the cron times in wrangler.toml:
-// check in this many minutes BEFORE shift start, check out this many AFTER shift end.
+// Auto timing offsets (minutes): check in this many minutes BEFORE shift start, check
+// out this many AFTER shift end. The trigger (Cloudflare cron AND/OR the external
+// /cron pinger) fires repeatedly across the day; these constants — not the trigger
+// cadence — define the exact moment each action happens. Idempotent reconciliation
+// means extra/late fires are harmless.
 const CHECKIN_LEAD_MIN = 5;
 const CHECKOUT_LAG_MIN = 1;
 
@@ -115,18 +118,22 @@ async function handleConfig(env, body) {
 
 // Cron reconciliation: check in at shift start, check out at shift end.
 // Idempotent and self-correcting, so a missed/late fire still does the right thing.
+// Returns a summary of what it did (surfaced over /cron, since Cloudflare logs aren't
+// queryable via API on this account).
 async function runAuto(env) {
   const cfg = await getConfig(env);
   const { date, hour, minute } = ictParts();
-  if (!cfg.autoEnabled) return console.log("[auto] disabled");
-  if (cfg.skipDates.includes(date)) return console.log(`[auto] skip ${date}`);
+  const now = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  if (!cfg.autoEnabled) { console.log("[auto] disabled"); return { date, now, skipped: "disabled" }; }
+  if (cfg.skipDates.includes(date)) { console.log(`[auto] skip ${date}`); return { date, now, skipped: "skip-date" }; }
 
   const c = createClient(env);
   const jwt = await c.getAccessToken();
   const assignments = await c.getTodayAssignments(jwt);
-  if (!assignments.length) return console.log(`[auto] no shift ${date}`);
+  if (!assignments.length) { console.log(`[auto] no shift ${date}`); return { date, now, shifts: 0, actions: [] }; }
 
   const nowMin = hour * 60 + minute;
+  const actions = [];
   for (const a of assignments) {
     const slot = parseSlot(a.shift_slot);
     if (!slot) continue;
@@ -137,15 +144,24 @@ async function runAuto(env) {
     if (nowMin >= checkinAt && nowMin < shiftEnd && st.state === "none") {
       const r = await c.checkin(jwt, a);
       console.log(`[auto] checkin ${a.shift_slot}`, JSON.stringify(r));
-      if (!r.skipped && cfg.slackNotify)
-        console.log(`[auto] slack checkin`, JSON.stringify(await c.notifySlack(a, "checkin")));
+      let slack;
+      if (!r.skipped && cfg.slackNotify) {
+        slack = await c.notifySlack(a, "checkin");
+        console.log(`[auto] slack checkin`, JSON.stringify(slack));
+      }
+      actions.push({ slot: a.shift_slot, action: "checkin", skipped: !!r.skipped, slack });
     } else if (nowMin >= checkoutAt && st.state === "open") {
       const r = await c.checkout(jwt, a);
       console.log(`[auto] checkout ${a.shift_slot}`, JSON.stringify(r));
-      if (!r.skipped && cfg.slackNotify)
-        console.log(`[auto] slack checkout`, JSON.stringify(await c.notifySlack(a, "checkout")));
+      let slack;
+      if (!r.skipped && cfg.slackNotify) {
+        slack = await c.notifySlack(a, "checkout");
+        console.log(`[auto] slack checkout`, JSON.stringify(slack));
+      }
+      actions.push({ slot: a.shift_slot, action: "checkout", skipped: !!r.skipped, slack });
     }
   }
+  return { date, now, shifts: assignments.length, actions };
 }
 
 export default {
@@ -157,6 +173,19 @@ export default {
       return new Response(renderHTML(), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
+    }
+
+    // External trigger: an outside scheduler (cron-job.org) GETs this every ~5 min to
+    // drive runAuto, because Cloudflare's free-tier cron is unreliable for this worker.
+    // Gated by the CRON_KEY secret (header x-cron-key or ?key=). Disabled until set.
+    if (path === "/cron") {
+      const key = request.headers.get("x-cron-key") || url.searchParams.get("key") || "";
+      if (!env.CRON_KEY || key !== env.CRON_KEY) return json({ error: "unauthorized" }, 401);
+      try {
+        return json(await runAuto(env));
+      } catch (e) {
+        return json({ error: e.message || String(e) }, 500);
+      }
     }
 
     if (path.startsWith("/api/")) {

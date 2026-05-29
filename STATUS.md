@@ -1,6 +1,6 @@
 # Shift Auto — Trạng thái & Tiếp tục công việc
 
-Cập nhật: **2026-05-29 ~11:15 ICT**
+Cập nhật: **2026-05-29 ~17:45 ICT**
 
 ## Đang chạy ở đâu
 - **Web app + auto check-in/out** đã deploy trên **Cloudflare Worker `shift-auto`**.
@@ -33,15 +33,18 @@ Cập nhật: **2026-05-29 ~11:15 ICT**
 - **Slack hạ tầng vẫn khỏe:** action id `78acd24...` vẫn khớp bundle hiện tại (app gốc chưa redeploy), cookie auth vẫn sống (page 200). "Không thấy notice" hôm nay là do sự cố ghi nhầm ca, không phải Slack hỏng.
 - ⚠️ **Log lịch sử worker không query được qua API** (token wrangler chỉ có `workers_tail:read`; `tail` chỉ xem trực tiếp). Dựng lại diễn biến bằng Supabase REST + KV `session.expires_at` (= lần auth/cron gần nhất + 1h).
 
-## Lịch auto (cron UTC, ICT = +7), Thứ 2–Thứ 6
-| ICT | UTC cron | Hành động |
-|---|---|---|
-| 07:55 | `55 0 * * 1-5` | check-in ca sáng (slot 8-11) |
-| 11:01 | `1 4 * * 1-5` | check-out ca sáng |
-| 13:55 | `55 6 * * 1-5` | check-in ca chiều (slot 14-17) |
-| 17:01 | `1 10 * * 1-5` | check-out ca chiều |
-- Offset: check-in = giờ-bắt-đầu **−5'**, check-out = giờ-kết-thúc **+1'** (hằng số `CHECKIN_LEAD_MIN`/`CHECKOUT_LAG_MIN` trong `src/index.js`, **phải khớp** cron trong `wrangler.toml`).
-- Logic: check-in nếu `now ∈ [start−5, end)` và chưa check-in; check-out nếu `now ≥ end+1` và đang mở. Idempotent + tự khớp đúng ca theo giờ.
+## ⚠️ 29/05 (chiều) — Cloudflare cron KHÔNG fire → chuyển sang trigger ngoài
+- **Triệu chứng:** suốt 29/05 **không cron nào chạy** (check-in sáng + chiều đều do bạn làm tay; auto check-out 17:01 không nổ). Tail sống **~40 phút** trùm mốc 17:01 (cả cron cũ lẫn cron mới `*/5`, lẽ ra nổ ≥3 lần) → **0 sự kiện `scheduled`**.
+- **Đã loại trừ:** cron vẫn đăng ký đủ (xác minh qua API), worker khỏe (fetch/UI chạy), code đúng (lỗi code thì tail vẫn hiện "scheduled - Error"). → Nguyên nhân: **Cloudflare free-tier cron là best-effort, hôm nay không giao trigger** cho worker này. Tăng tần suất vô ích vì Cloudflare không gọi.
+- **Giải pháp (không phụ thuộc cron Cloudflare):** thêm endpoint **`GET /cron?key=<CRON_KEY>`** (hoặc header `x-cron-key`) chạy `runAuto` và **trả về JSON tóm tắt hành động** (bù cho việc không xem được log Cloudflare). Một scheduler **ngoài** (**cron-job.org**) gọi vào mỗi 5' → fetch của worker vẫn chạy tốt nên auto chạy ổn định.
+- **Secret `CRON_KEY`** đã set (giá trị lưu local ở `cf-worker/.cron-key.txt`, đã `.gitignore`). Đổi: `printf '%s' "KEY_MỚI" | npx wrangler secret put CRON_KEY`.
+- Cron Cloudflare `*/5 0-11 * * 1-5` **vẫn giữ** làm dự phòng (idempotent — nếu Cloudflare hồi thì chỉ thêm redundancy).
+
+## Lịch auto, Thứ 2–Thứ 6
+- **Trigger chính:** cron-job.org GET `…/cron?key=…` **mỗi 5'**, khung **07:00–19:00 ICT, T2–T6** (set timezone Asia/Ho_Chi_Minh trong cron-job.org).
+- **Trigger dự phòng:** Cloudflare cron `*/5 0-11 * * 1-5` (UTC) = mỗi 5' trong 07:00–18:55 ICT.
+- Offset: check-in = giờ-bắt-đầu **−5'**, check-out = giờ-kết-thúc **+1'** (hằng số `CHECKIN_LEAD_MIN`/`CHECKOUT_LAG_MIN` trong `src/index.js`). Với trigger lặp mỗi 5', **các hằng số này** (không phải cadence cron) định nghĩa đúng thời điểm hành động.
+- Logic: check-in nếu `now ∈ [start−5, end)` và chưa check-in; check-out nếu `now ≥ end+1` và đang mở. Idempotent — fire thừa/trễ vô hại, miễn 1 fire trong cửa sổ trúng.
 
 ## Bug đã fix hôm nay
 - Bảng `checkins` **không có cột `role`** → payload check-in cũ gửi `role` gây lỗi `400 PGRST204`. Đã bỏ field `role` (cả worker lẫn script local). Redeploy ~08:00.
@@ -59,11 +62,13 @@ Cập nhật: **2026-05-29 ~11:15 ICT**
 - Deploy lại sau khi sửa code: `npx wrangler deploy`
 - Đổi mật khẩu Shift Manager (khi bạn đổi pass thật): `printf '%s' "PASS_MỚI" | npx wrangler secret put PASSWORD`
 - Đổi PIN: `printf '%s' "PIN_MỚI" | npx wrangler secret put UI_PIN`
+- Đổi key trigger ngoài: `printf '%s' "KEY_MỚI" | npx wrangler secret put CRON_KEY` (rồi cập nhật lại job trên cron-job.org)
+- Tự gọi auto thủ công (debug, KHÔNG phụ thuộc cron): `curl "https://shift-auto.nguyentrunghieu002.workers.dev/cron?key=<CRON_KEY>"` → trả JSON `{date, now, actions:[...]}`.
 - Nếu deploy lỗi `EBUSY`: kill tiến trình kẹt `Get-Process workerd | Stop-Process -Force` rồi deploy lại.
 
 ## Rủi ro / việc có thể làm tiếp
-- Cron cố định khớp ca **8-11 / 14-17**. Hôm nào ca lệch giờ khác → cron không khớp, cần chỉnh.
-- Chỉ 4 fire/ngày, **không dự phòng** nếu Cloudflare lỡ 1 fire (hiếm). Có thể thêm fire lặp quanh mỗi mốc nếu muốn chắc.
+- `runAuto` đọc ca thật và parse slot của từng assignment → tự khớp mọi giờ ca **trong khung 07:00–19:00 ICT**. Nếu ca lệch ra ngoài khung này (vd ca tối/đêm) → mở rộng khung giờ cron-job.org + dải giờ cron Cloudflare (`0-11`).
+- **Độ tin cậy auto giờ dựa vào cron-job.org** (ngoài), không phải cron Cloudflare (đã chứng minh không đáng tin). Nếu auto im: kiểm tra job trên cron-job.org còn bật + lịch chạy gần nhất; test tay bằng `curl …/cron?key=…`.
 - Link public chặn bằng **PIN 4 số** — đủ cá nhân nhưng về lý thuyết dò được; có thể thêm rate-limit.
 - **Mật khẩu Shift Manager** đang nằm trong Cloudflare Secret (mã hoá) — nên đổi mạnh hơn rồi cập nhật secret.
 - Khi refresh token chết, worker tự login lại bằng EMAIL/PASSWORD (đã có fallback).
