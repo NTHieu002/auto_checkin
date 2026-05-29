@@ -1,6 +1,6 @@
 # Shift Auto — Trạng thái & Tiếp tục công việc
 
-Cập nhật: **2026-05-28 ~14:00 ICT**
+Cập nhật: **2026-05-29 ~11:15 ICT**
 
 ## Đang chạy ở đâu
 - **Web app + auto check-in/out** đã deploy trên **Cloudflare Worker `shift-auto`**.
@@ -25,6 +25,13 @@ Cập nhật: **2026-05-28 ~14:00 ICT**
 - ⚠️ **Bug đã fix (28/05, commit `93a0df3`):** Slack **không gửi** dù check-in/out DB vẫn OK. Nguyên nhân thật: `notifySlack` dựng cookie từ biến closure `session`, nhưng `tryRefresh()` lại khai báo `let session` cục bộ → `session = data` gán nhầm vào biến cục bộ, để closure `session` = null. Đường thường (refresh token còn tốt) không chạy `passwordLogin` (nơi gán đúng) → cookie null → `no-session` → không gửi. Sửa: đổi biến cục bộ thành `stored`. Đã verify trong worker: `hasSession:true`, cookie xác thực (page 200).
 - Action id hiện tại đã cache ở KV remote: `78acd24ea3ce998c554a3b7631e24299375f731bd1`. (Pre-cache id giúp cron khỏi phải cào ~18 file JS mỗi lần — vẫn nên giữ.)
 - ⚠️ **Khi chủ app redeploy:** id đổi → tin Slack lỗi 1 lần, self-heal tự cào lại id mới. Nếu Slack im sau khi app upstream đổi: cào lại id thủ công và `wrangler kv key put --remote --namespace-id 9bc7acbba8a849759e729f1020d0d32a slack_action_id <id-mới>`.
+
+## 29/05 — sửa thứ tự card + sự cố ghi nhầm ca
+- **Thứ tự card sai:** `getTodayAssignments` cũ dùng `order=shift_slot.asc` của Supabase = sort **chuỗi** → `"14-17"` đứng TRÊN `"8-11"`. Đã bỏ order DB, sort **theo giờ bắt đầu thật** (`parseSlot(slot).start`) trong `src/shift.js`. Sửa này khắc phục cả thứ tự hiển thị card LẪN fallback `assignments[0]` (giờ trỏ đúng ca sớm nhất). Đã deploy.
+- **Sự cố do thứ tự sai:** sáng 29/05 card 14-17 hiển thị trên cùng → đã bấm check-in/out nhầm vào ca **14-17** (07:59–11:09) thay vì ca sáng 8-11. Hậu quả: 8-11 trống, 14-17 thành `closed` → cron 13:55 sẽ **bỏ qua check-in chiều** (idempotent) → **mất notice chiều**.
+- **Khắc phục dữ liệu:** PATCH `assignment_id` của dòng check-in đó từ 14-17 → 8-11 (qua REST, **không** bắn Slack). Kết quả: 8-11 hiện đúng giờ sáng; 14-17 trống lại để 13:55 cron tự check-in + bắn notice.
+- **Slack hạ tầng vẫn khỏe:** action id `78acd24...` vẫn khớp bundle hiện tại (app gốc chưa redeploy), cookie auth vẫn sống (page 200). "Không thấy notice" hôm nay là do sự cố ghi nhầm ca, không phải Slack hỏng.
+- ⚠️ **Log lịch sử worker không query được qua API** (token wrangler chỉ có `workers_tail:read`; `tail` chỉ xem trực tiếp). Dựng lại diễn biến bằng Supabase REST + KV `session.expires_at` (= lần auth/cron gần nhất + 1h).
 
 ## Lịch auto (cron UTC, ICT = +7), Thứ 2–Thứ 6
 | ICT | UTC cron | Hành động |

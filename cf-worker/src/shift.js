@@ -108,11 +108,14 @@ export function createClient(env) {
       `${REST}/shift_assignments` +
       `?select=id,shift_slot,is_sl,role,status,members!member_id(name)` +
       `&member_id=eq.${MEMBER_ID}` +
-      `&shift_date=eq.${today}` +
-      `&order=shift_slot.asc`;
+      `&shift_date=eq.${today}`;
     const r = await fetch(url, { headers: authHeaders(jwt) });
     if (!r.ok) throw new Error(`Get assignments failed: ${r.status} ${await r.text()}`);
-    return r.json();
+    const rows = await r.json();
+    // Sort by real shift start hour: DB "shift_slot.asc" is a string sort that puts
+    // "14-17" before "8-11". Numeric ordering keeps the UI and the assignments[0]
+    // fallback aligned with actual chronology (earliest shift first).
+    return rows.sort((a, b) => (parseSlot(a.shift_slot)?.start ?? 99) - (parseSlot(b.shift_slot)?.start ?? 99));
   }
 
   // Latest check-in for an assignment: { state: 'none'|'open'|'closed', row }.
