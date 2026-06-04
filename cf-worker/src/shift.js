@@ -208,9 +208,12 @@ export function createClient(env) {
   }
 
   // OT (overtime) hour stats from the ot_requests table — what the app's "OT request"
-  // tab is built on. Counts approved OT (both covers, leave_id set, and plain extra
-  // shifts, leave_id null). Hours come from the embedded assignment's slot duration.
+  // tab is built on. Counts approved OT (covers, leave_id set, AND plain extra shifts,
+  // leave_id null). For each shift: rawHours = slot duration; a weekend (Sat/Sun by
+  // shift_date) is paid x2, a weekday x1.5; money = multHours * OT_RATE. Returns both a
+  // this-month bucket and an all-time bucket so the UI can filter (default: this month).
   async function getOtStats(jwt) {
+    const OT_RATE = 80000; // VND per (multiplied) hour
     const url =
       `${REST}/ot_requests` +
       `?select=id,status,created_at,leave_id,shift_assignments!assignment_id(shift_slot,shift_date)` +
@@ -220,23 +223,25 @@ export function createClient(env) {
     if (!r.ok) throw new Error(`Get OT stats failed: ${r.status} ${await r.text()}`);
     const rows = await r.json();
     const thisMonth = ictParts().date.slice(0, 7);
-    const byMonthMap = {};
-    let totalHours = 0,
-      totalCount = 0;
+    const blank = () => ({ count: 0, rawHours: 0, multHours: 0, money: 0 });
+    const all = blank();
+    const month = blank();
     for (const o of rows) {
       if (o.status !== "approved") continue;
       const a = o.shift_assignments;
-      const h = a ? slotHours(a.shift_slot) : 0;
-      const mo = (a?.shift_date || o.created_at).slice(0, 7);
-      if (!byMonthMap[mo]) byMonthMap[mo] = { month: mo, hours: 0, count: 0 };
-      byMonthMap[mo].hours += h;
-      byMonthMap[mo].count += 1;
-      totalHours += h;
-      totalCount += 1;
+      if (!a) continue;
+      const raw = slotHours(a.shift_slot);
+      const dow = new Date(`${a.shift_date}T00:00:00Z`).getUTCDay(); // 0=Sun,6=Sat
+      const factor = dow === 0 || dow === 6 ? 2 : 1.5;
+      const mh = raw * factor;
+      all.count += 1; all.rawHours += raw; all.multHours += mh;
+      if ((a.shift_date || "").slice(0, 7) === thisMonth) {
+        month.count += 1; month.rawHours += raw; month.multHours += mh;
+      }
     }
-    const byMonth = Object.values(byMonthMap).sort((a, b) => b.month.localeCompare(a.month));
-    const tm = byMonthMap[thisMonth] || { hours: 0, count: 0 };
-    return { totalHours, totalCount, thisMonth, thisMonthHours: tm.hours, thisMonthCount: tm.count, byMonth };
+    all.money = all.multHours * OT_RATE;
+    month.money = month.multHours * OT_RATE;
+    return { rate: OT_RATE, thisMonth, month, all };
   }
 
   // ===== Slack notification (mirrors the web app's post-action server call) =====

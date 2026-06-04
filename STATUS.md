@@ -2,8 +2,11 @@
 
 Cập nhật: **2026-06-04 ~08:30 ICT**
 
-## 04/06 — Feature: thống kê giờ OT trong app
-- Thêm panel **"Giờ OT của tôi"** trên UI worker (đọc bảng `ot_requests`, gói `getOtStats()` trong `shift.js`; trả trong `/api/status`). Tổng giờ + số ca, tách theo tháng (tô đậm tháng hiện tại). Tính giờ = `slotHours()` (xử cả ca wrap nửa đêm). Hiện tại: **36h / 12 ca** (T6: 15h, T5: 21h). Đây là bản mirror read-only của tab "OT request" trên app gốc (app gốc không sửa được).
+## 04/06 — Feature: thống kê giờ OT + lương trong app (pixel art)
+- Block **OT riêng**, thiết kế **pixel-art kiểu Nhật** (thác nước động, núi Phú Sĩ, cây thông/sakura, đồng cỏ; font "Press Start 2P" cho số). Đọc `ot_requests` qua `getOtStats()` (`shift.js`), trả trong `/api/status`.
+- **Filter** 2 tab: **Tháng này** (mặc định) / **Tất cả (all-time)**. Mỗi tab hiện 3 số: **giờ thực**, **giờ ×hệ số**, **thực nhận (tiền)**.
+- **Hệ số lương:** cuối tuần (T7/CN theo `shift_date`) **×2**, ngày thường **×1.5**. **Tiền = giờ-×hệ-số × 80.000đ/h** (`OT_RATE`).
+- Số hiện tại: Tháng này **15h thực → 22.5h hệ số → 1.800.000đ**; All-time **36h → 60h → 4.800.000đ**. Mirror read-only của tab "OT request" app gốc.
 
 ## 04/06 — Feature: auto-checkout khi COVER ca người khác
 - **Vấn đề:** ca bạn *cover* (làm thay) thuộc `member_id` người khác → không nằm trong `getTodayAssignments` (lọc theo bạn) → cron cũ **không bao giờ tự checkout** ca cover.

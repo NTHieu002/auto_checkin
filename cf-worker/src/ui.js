@@ -8,6 +8,9 @@ export function renderHTML() {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f172a">
 <title>Shift Auto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   :root{--bg:#0f172a;--card:#1e293b;--card2:#334155;--txt:#e2e8f0;--muted:#94a3b8;
     --accent:#38bdf8;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--line:#334155;}
@@ -59,6 +62,67 @@ export function renderHTML() {
   .spin{display:inline-block;width:16px;height:16px;border:2px solid #fff5;
     border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-3px}
   @keyframes s{to{transform:rotate(360deg)}}
+
+  /* ===== OT block — Japanese pixel-art scene ===== */
+  .ot{padding:0;overflow:hidden}
+  .ot-scene{position:relative;height:160px;overflow:hidden;image-rendering:pixelated;
+    background:linear-gradient(#a9def6 0%,#cdeefb 42%,#bfe9c4 42%,#a9dcae 100%)}
+  /* drifting clouds */
+  .ot-cloud{position:absolute;background:#fff;border-radius:8px;opacity:.9;
+    box-shadow:14px 6px 0 0 #fff,28px 0 0 -2px #fff}
+  .ot-cloud.c1{top:16px;width:22px;height:10px;animation:drift 26s linear infinite}
+  .ot-cloud.c2{top:34px;width:16px;height:8px;opacity:.7;animation:drift 38s linear infinite}
+  @keyframes drift{from{left:-60px}to{left:120%}}
+  /* sun */
+  .ot-sun{position:absolute;top:14px;right:20px;width:24px;height:24px;border-radius:50%;
+    background:#ffd45e;box-shadow:0 0 0 5px rgba(255,229,150,.5)}
+  /* Mt. Fuji */
+  .ot-fuji{position:absolute;bottom:54px;left:50%;transform:translateX(-50%);
+    width:0;height:0;border-left:78px solid transparent;border-right:78px solid transparent;
+    border-bottom:64px solid #8aa0c8}
+  .ot-fuji::after{content:"";position:absolute;left:-22px;top:0;width:0;height:0;
+    border-left:22px solid transparent;border-right:22px solid transparent;border-bottom:18px solid #f5f7ff}
+  /* cliff + waterfall */
+  .ot-cliff{position:absolute;top:40px;left:30px;width:34px;height:78px;background:#6b5847;
+    border-radius:0 0 4px 4px;box-shadow:inset -4px 0 0 #5a4838,inset 4px 0 0 #7d6a57}
+  .ot-fall{position:absolute;top:42px;left:38px;width:18px;height:72px;overflow:hidden;
+    background:#dff4ff;box-shadow:0 0 6px rgba(190,233,255,.9)}
+  .ot-fall::before{content:"";position:absolute;inset:-12px 0;
+    background:repeating-linear-gradient(#ffffff 0 5px,#bfe6ff 5px 12px);animation:fall .45s linear infinite}
+  @keyframes fall{to{transform:translateY(12px)}}
+  .ot-pool{position:absolute;top:108px;left:26px;width:42px;height:12px;border-radius:50%;
+    background:radial-gradient(#cdeeff,#9fd6f5);animation:ripple 2.4s ease-in-out infinite}
+  @keyframes ripple{50%{transform:scaleX(1.18)}}
+  /* meadow */
+  .ot-grass{position:absolute;left:0;right:0;bottom:0;height:46px;background:#7cc47f;
+    border-top:3px solid #5fae6a;
+    background-image:repeating-linear-gradient(90deg,transparent 0 8px,rgba(95,174,106,.5) 8px 9px)}
+  .ot-grass::before{content:"";position:absolute;top:-6px;left:0;right:0;height:8px;
+    background:repeating-linear-gradient(90deg,#5fae6a 0 3px,transparent 3px 12px)}
+  /* pixel pine trees */
+  .tree{position:absolute;bottom:34px;width:26px;height:32px;background:#2f8f43;
+    clip-path:polygon(50% 0,66% 24%,57% 24%,76% 50%,63% 50%,86% 80%,14% 80%,37% 50%,24% 50%,34% 24%,25% 24%)}
+  .tree::after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
+    width:5px;height:8px;background:#6d4321}
+  .tree.t2{transform:scale(.8);filter:brightness(.92)}
+  .tree.t3{transform:scale(1.15);filter:brightness(1.05)}
+  .tree.sakura{background:#f7a8c4}
+  /* title chip */
+  .ot-title{position:absolute;top:10px;left:12px;font-family:"Press Start 2P",monospace;
+    font-size:11px;color:#1f3a26;text-shadow:1px 1px 0 #fff;letter-spacing:1px}
+  /* stats panel */
+  .ot-panel{background:#12241a;padding:14px}
+  .ot-tabs{display:flex;gap:8px;margin-bottom:12px}
+  .ot-tab{flex:1;background:#23402f;color:#bfe9c4;border-radius:10px;padding:9px;
+    font-size:13px;font-weight:600}
+  .ot-tab.on{background:#3fae5a;color:#082011}
+  .ot-stat{display:flex;align-items:baseline;justify-content:space-between;
+    padding:8px 0;border-top:1px solid #21402d}
+  .ot-stat:first-of-type{border-top:0}
+  .ot-k{color:#8fc79b;font-size:13px}
+  .ot-v{font-family:"Press Start 2P",monospace;font-size:14px;color:#eafff0}
+  .ot-money .ot-v{color:#ffd45e;font-size:13px}
+  .ot-sub{margin-top:8px;color:#6fae80;font-size:12px;text-align:right}
 </style>
 </head>
 <body>
@@ -82,12 +146,34 @@ export function renderHTML() {
       <button class="link" id="refreshBtn">↻ Tải lại</button>
     </div>
     <div id="shifts"></div>
-    <div class="card" id="otCard" style="display:none">
-      <div class="row">
-        <div style="font-weight:600">Giờ OT của tôi</div>
-        <div class="otbig" id="otTotal">—</div>
+    <div class="card ot" id="otCard" style="display:none">
+      <div class="ot-scene">
+        <div class="ot-cloud c1"></div>
+        <div class="ot-cloud c2"></div>
+        <div class="ot-sun"></div>
+        <div class="ot-fuji"></div>
+        <div class="ot-cliff"></div>
+        <div class="ot-fall"></div>
+        <div class="ot-pool"></div>
+        <div class="tree t2" style="left:78px"></div>
+        <div class="tree sakura" style="left:104px;bottom:36px"></div>
+        <div class="tree" style="left:140px"></div>
+        <div class="tree t3" style="left:172px"></div>
+        <div class="tree t2" style="left:210px"></div>
+        <div class="tree" style="left:246px"></div>
+        <div class="ot-grass"></div>
+        <div class="ot-title">&#9962; GIO OT</div>
       </div>
-      <div class="times" id="otMonths"></div>
+      <div class="ot-panel">
+        <div class="ot-tabs">
+          <button class="ot-tab on" id="otTabMonth">Tháng này</button>
+          <button class="ot-tab" id="otTabAll">Tất cả (all-time)</button>
+        </div>
+        <div class="ot-stat"><span class="ot-k">Số giờ thực</span><span class="ot-v" id="otRaw">—</span></div>
+        <div class="ot-stat"><span class="ot-k">Đã ×hệ số</span><span class="ot-v" id="otMult">—</span></div>
+        <div class="ot-stat ot-money"><span class="ot-k">Thực nhận</span><span class="ot-v" id="otMoney">—</span></div>
+        <div class="ot-sub" id="otSub"></div>
+      </div>
     </div>
     <div class="card">
       <div class="switch">
@@ -116,6 +202,7 @@ export function renderHTML() {
 <script>
   var PIN = localStorage.getItem("shiftPin") || "";
   var busy = false;
+  var OT = null, otView = "month";
 
   function $(id){ return document.getElementById(id); }
   function toast(msg, isErr){
@@ -175,18 +262,25 @@ export function renderHTML() {
     setToggle($("tgSkip"), data.config.skipToday);
     setToggle($("tgSlack"), data.config.slackNotify);
   }
+  function fmtH(h){ return (Math.round(h * 10) / 10) + "h"; }
+  function fmtMoney(v){ return (v || 0).toLocaleString("vi-VN") + "đ"; }
   function renderOt(ot){
+    OT = ot;
     if(!ot){ $("otCard").style.display = "none"; return; }
     $("otCard").style.display = "block";
-    $("otTotal").textContent = ot.totalHours + "h · " + ot.totalCount + " ca";
-    var months = ot.byMonth || [];
-    if(!months.length){ $("otMonths").textContent = "Chưa có OT nào"; return; }
-    $("otMonths").innerHTML = months.map(function(m){
-      var line = "Tháng " + m.month + ": " + m.hours + "h · " + m.count + " ca";
-      return m.month === ot.thisMonth
-        ? '<b style="color:var(--txt)">' + line + " (tháng này)</b>"
-        : line;
-    }).join("<br>");
+    paintOt();
+  }
+  function paintOt(){
+    if(!OT) return;
+    var d = (otView === "all" ? OT.all : OT.month) || {};
+    $("otRaw").textContent = fmtH(d.rawHours);
+    $("otMult").textContent = fmtH(d.multHours);
+    $("otMoney").textContent = fmtMoney(d.money);
+    $("otSub").textContent = (d.count || 0) + " ca OT"
+      + (otView === "all" ? " · toàn bộ" : " · tháng " + OT.thisMonth)
+      + " · " + fmtMoney(OT.rate) + "/h";
+    $("otTabMonth").className = "ot-tab" + (otView === "month" ? " on" : "");
+    $("otTabAll").className = "ot-tab" + (otView === "all" ? " on" : "");
   }
   function setToggle(el, on){ el.className = "toggle" + (on ? " on" : ""); }
 
@@ -229,6 +323,9 @@ export function renderHTML() {
       toast(r.config.slackNotify ? "Đã bật báo Slack" : "Đã tắt báo Slack");
     }).catch(function(e){ toast(e.message, true); load(); });
   };
+
+  $("otTabMonth").onclick = function(){ otView = "month"; paintOt(); };
+  $("otTabAll").onclick = function(){ otView = "all"; paintOt(); };
 
   $("refreshBtn").onclick = load;
   $("logoutBtn").onclick = function(){ PIN=""; localStorage.removeItem("shiftPin"); showGate(); };
