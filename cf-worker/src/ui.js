@@ -1,14 +1,12 @@
-// Single-page mobile/desktop UI served at "/". Daytime Mt. Fuji + sakura photo theme.
+// Single-page mobile/desktop UI served at "/". Japanese night pixel-art theme.
 // Client JS avoids template literals/${} so it can live safely inside this template.
-// (CSS may use ${} — it's interpolated server-side when renderHTML runs.)
-import { BG } from "./bg.js";
 export function renderHTML() {
   return `<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#8fc3e6">
+<meta name="theme-color" content="#0a0f1f">
 <title>Shift Auto</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +14,7 @@ export function renderHTML() {
 <style>
   :root{--bg:#0a0f1f;--card:rgba(17,25,48,.74);--card2:rgba(38,50,86,.7);
     --txt:#e9eefb;--muted:#9fb0d6;--line:rgba(130,150,200,.22);
-    --accent:#7fd0ff;--gold:#ffcf6b;--green:#52c97a;--red:#ef6b6b;--sakura:#f4b6d0;}
+    --accent:#7fd0ff;--gold:#ffcf6b;--green:#52c97a;--red:#ef6b6b;--torii:#d2473b;--sakura:#f4b6d0;}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;min-height:100%}
   body{background:var(--bg);color:var(--txt);overflow-x:hidden;
@@ -24,11 +22,61 @@ export function renderHTML() {
     padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
   .px{font-family:"Press Start 2P",monospace}
 
-  /* ===== Daytime Mt. Fuji + sakura photo scene (z0) ===== */
-  .scene{position:fixed;inset:0;z-index:0;background:#cfe8f7 center/cover no-repeat fixed;
-    background-image:url(${BG})}
-  .scene::after{content:"";position:absolute;inset:0;
-    background:linear-gradient(180deg,rgba(6,12,28,.34) 0%,rgba(8,16,34,.05) 22%,rgba(8,16,34,.12) 52%,rgba(6,12,28,.56) 100%)}
+  /* ===== Fixed night pixel scene (z0) ===== */
+  .scene{position:fixed;inset:0;z-index:0;overflow:hidden;image-rendering:pixelated;
+    background:linear-gradient(#070b18 0%,#0d1530 45%,#1b2750 78%,#26305a 100%)}
+  .stars,.stars::after{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff}
+  .stars{top:0;left:0;box-shadow:60px 40px #fff,140px 90px #cfe,220px 50px #fff,300px 120px #bce,
+    380px 70px #fff,460px 30px #eef,540px 110px #fff,640px 60px #cdf,720px 100px #fff,820px 40px #fff,
+    900px 90px #cce,1000px 60px #fff,1120px 110px #fff,1200px 50px #eef,80px 150px #fff,260px 170px #cdf,
+    520px 160px #fff,760px 150px #fff,980px 170px #cce,1180px 140px #fff;animation:tw 4s ease-in-out infinite}
+  .stars.s2{box-shadow:30px 70px #fff,180px 30px #cdf,360px 130px #fff,500px 80px #fff,680px 40px #cce,
+    860px 120px #fff,1040px 80px #fff,1220px 100px #fff;animation-delay:2s;opacity:.7}
+  @keyframes tw{50%{opacity:.45}}
+  .moon{position:absolute;top:42px;right:8%;width:52px;height:52px;border-radius:50%;
+    background:radial-gradient(circle at 38% 35%,#fdfbe9,#e8e3c4);box-shadow:0 0 34px 10px rgba(247,243,210,.28)}
+  .fuji{position:absolute;bottom:140px;left:50%;transform:translateX(-55%);width:0;height:0;
+    border-left:130px solid transparent;border-right:130px solid transparent;border-bottom:120px solid #1d2748;opacity:.9}
+  .fuji::after{content:"";position:absolute;left:-34px;top:0;width:0;height:0;
+    border-left:34px solid transparent;border-right:34px solid transparent;border-bottom:30px solid #d9e2ff;opacity:.85}
+  /* torii */
+  .torii{position:absolute;bottom:150px;left:9%;width:92px;height:104px;opacity:.96}
+  .torii i{position:absolute;background:var(--torii);box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
+  .torii .top{top:0;left:-6px;width:104px;height:11px;border-radius:3px}
+  .torii .top2{top:22px;left:4px;width:84px;height:9px}
+  .torii .pl{top:8px;left:14px;width:11px;height:96px}
+  .torii .pr{top:8px;right:14px;width:11px;height:96px}
+  /* lantern string */
+  .lstring{position:absolute;top:0;left:0;right:0;height:70px}
+  .lstring .wire{position:absolute;top:14px;left:0;right:0;height:2px;background:rgba(255,255,255,.12)}
+  .lantern{position:absolute;top:18px;width:20px;height:26px;border-radius:7px;background:#e8473a;
+    box-shadow:0 0 14px 2px rgba(255,150,90,.55),inset 0 0 6px rgba(255,220,120,.7);
+    transform-origin:top center;animation:sway 3.4s ease-in-out infinite}
+  .lantern::before{content:"";position:absolute;top:-4px;left:6px;width:8px;height:4px;background:#7a2a22}
+  .lantern::after{content:"";position:absolute;bottom:-4px;left:6px;width:8px;height:4px;background:#ffcf6b}
+  @keyframes sway{50%{transform:rotate(7deg)}}
+  /* trees on the ridge */
+  .tree{position:absolute;bottom:104px;width:30px;height:38px;background:#16351f;
+    clip-path:polygon(50% 0,66% 24%,57% 24%,76% 50%,63% 50%,86% 80%,14% 80%,37% 50%,24% 50%,34% 24%,25% 24%)}
+  .tree::after{content:"";position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);width:5px;height:9px;background:#3a2614}
+  .tree.sakura{background:#6e3a55}
+  /* waterfall + koi pond */
+  .cliff{position:absolute;bottom:96px;right:13%;width:46px;height:120px;background:#1a2238;border-radius:0 0 6px 6px}
+  .fall{position:absolute;bottom:96px;right:15%;width:22px;height:118px;overflow:hidden;background:rgba(190,225,255,.5)}
+  .fall::before{content:"";position:absolute;inset:-14px 0;
+    background:repeating-linear-gradient(rgba(255,255,255,.85) 0 5px,rgba(150,200,255,.55) 5px 12px);animation:fall .5s linear infinite}
+  @keyframes fall{to{transform:translateY(12px)}}
+  .ground{position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(#16351f,#0e2415);
+    border-top:3px solid #1f4a2b}
+  .pond{position:absolute;bottom:34px;right:6%;width:200px;max-width:46vw;height:60px;border-radius:50%;
+    background:radial-gradient(circle at 50% 40%,rgba(80,150,210,.55),rgba(20,60,110,.5));
+    box-shadow:0 0 22px rgba(90,160,220,.25);overflow:hidden}
+  .koi{position:absolute;top:50%;width:16px;height:7px;border-radius:50%;background:#ff8a3d;box-shadow:0 0 6px rgba(255,140,60,.6)}
+  .koi.k1{animation:swim1 7s ease-in-out infinite}
+  .koi.k2{background:#ffd0a0;top:62%;animation:swim2 9s ease-in-out infinite}
+  .koi.k3{background:#ff6f4d;top:38%;animation:swim1 11s ease-in-out infinite reverse}
+  @keyframes swim1{0%{left:-20px}50%{left:90%;transform:scaleX(-1)}100%{left:-20px}}
+  @keyframes swim2{0%{left:100%;transform:scaleX(-1)}50%{left:0}100%{left:100%;transform:scaleX(-1)}}
   /* falling sakura petals */
   .petals{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}
   .petal{position:absolute;top:-16px;width:9px;height:9px;background:var(--sakura);border-radius:9px 1px 9px 1px;opacity:.85;
@@ -97,7 +145,24 @@ export function renderHTML() {
 </style>
 </head>
 <body>
-<div class="scene"></div>
+<div class="scene">
+  <div class="stars"></div><div class="stars s2"></div>
+  <div class="moon"></div>
+  <div class="fuji"></div>
+  <div class="torii"><i class="top"></i><i class="top2"></i><i class="pl"></i><i class="pr"></i></div>
+  <div class="lstring"><div class="wire"></div>
+    <div class="lantern" style="left:18%"></div><div class="lantern" style="left:34%;animation-delay:.6s"></div>
+    <div class="lantern" style="left:52%;animation-delay:1.1s"></div><div class="lantern" style="left:70%;animation-delay:.3s"></div>
+    <div class="lantern" style="left:86%;animation-delay:.9s"></div>
+  </div>
+  <div class="tree" style="left:24%"></div>
+  <div class="tree sakura" style="left:33%;bottom:106px"></div>
+  <div class="tree" style="left:60%"></div>
+  <div class="tree sakura" style="left:70%;bottom:108px"></div>
+  <div class="cliff"></div><div class="fall"></div>
+  <div class="ground"></div>
+  <div class="pond"><div class="koi k1"></div><div class="koi k2"></div><div class="koi k3"></div></div>
+</div>
 <div class="petals">
   <span class="petal" style="left:6%;animation-duration:9s;animation-delay:0s"></span>
   <span class="petal" style="left:18%;animation-duration:12s;animation-delay:2s"></span>

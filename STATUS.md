@@ -2,11 +2,11 @@
 
 Cập nhật: **2026-06-04 ~08:30 ICT**
 
-## 04/06 — Redesign TOÀN BỘ UI: ảnh Phú Sĩ + hoa anh đào (ban ngày)
-- Theo ảnh tham chiếu user gửi: **nền là tấm ảnh thật** núi Phú Sĩ tuyết phủ + hoa anh đào (ban ngày, trời xanh). Ảnh nén JPEG 750×393 (~88KB) nhúng base64 ở **`cf-worker/src/bg.js`** (`export const BG`), `ui.js` import dùng làm `background:url(${BG})` cover, có scrim trên+dưới cho dễ đọc chữ, **hoa anh đào rơi** overlay, card bán trong suốt (blur) nổi lên.
-- (Trước đó từng thử bản pixel tông đêm + torii/đèn lồng/koi — đã thay bằng ảnh thật theo yêu cầu.)
-- **Desktop-first + responsive:** `.grid` 2 cột (≥780px: Ca hôm nay + điều khiển | OT) → 1 cột mobile.
-- Đổi nền sau này: sinh lại `bg.js` (resize+nén ảnh → JPEG nhỏ → base64 vào export đó). Deploy version `2cc9e53f`.
+## 04/06 — Redesign TOÀN BỘ UI: pixel-art Nhật, tông đêm
+- Cả app giờ là **1 cảnh pixel xuyên suốt, tông đêm + đèn lồng**: trời sao + trăng, núi Phú Sĩ, **cổng torii**, dãy **đèn lồng** đung đưa, **thác nước động + hồ cá koi** bơi, cây thông/sakura, **hoa anh đào rơi** phủ toàn màn. Card bán trong suốt (blur) nổi trên cảnh.
+- **Desktop-first + responsive:** `.grid` 2 cột (≥780px: Ca hôm nay + điều khiển | OT) → gộp 1 cột trên mobile.
+- Font pixel "Press Start 2P" chỉ cho logo + số (font này không có dấu tiếng Việt nên chữ thường vẫn dùng sans).
+- Toàn bộ trong `cf-worker/src/ui.js`. Deploy version `1ef98b18`.
 
 ## 04/06 — Feature: thống kê giờ OT + lương trong app (pixel art)
 - Block **OT riêng**, thiết kế **pixel-art kiểu Nhật** (thác nước động, núi Phú Sĩ, cây thông/sakura, đồng cỏ; font "Press Start 2P" cho số). Đọc `ot_requests` qua `getOtStats()` (`shift.js`), trả trong `/api/status`.
