@@ -1,139 +1,187 @@
-// Single-page mobile UI served at "/". Client JS avoids template literals/${}
-// so it can live safely inside this module's template string.
+// Single-page mobile/desktop UI served at "/". Japanese night pixel-art theme.
+// Client JS avoids template literals/${} so it can live safely inside this template.
 export function renderHTML() {
   return `<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#0a0f1f">
 <title>Shift Auto</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
-  :root{--bg:#0f172a;--card:#1e293b;--card2:#334155;--txt:#e2e8f0;--muted:#94a3b8;
-    --accent:#38bdf8;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--line:#334155;}
+  :root{--bg:#0a0f1f;--card:rgba(17,25,48,.74);--card2:rgba(38,50,86,.7);
+    --txt:#e9eefb;--muted:#9fb0d6;--line:rgba(130,150,200,.22);
+    --accent:#7fd0ff;--gold:#ffcf6b;--green:#52c97a;--red:#ef6b6b;--torii:#d2473b;--sakura:#f4b6d0;}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;background:var(--bg);color:var(--txt);
+  html,body{margin:0;min-height:100%}
+  body{background:var(--bg);color:var(--txt);overflow-x:hidden;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-  .wrap{max-width:460px;margin:0 auto;padding:18px}
+  .px{font-family:"Press Start 2P",monospace}
+
+  /* ===== Fixed night pixel scene (z0) ===== */
+  .scene{position:fixed;inset:0;z-index:0;overflow:hidden;image-rendering:pixelated;
+    background:linear-gradient(#070b18 0%,#0d1530 45%,#1b2750 78%,#26305a 100%)}
+  .stars,.stars::after{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff}
+  .stars{top:0;left:0;box-shadow:60px 40px #fff,140px 90px #cfe,220px 50px #fff,300px 120px #bce,
+    380px 70px #fff,460px 30px #eef,540px 110px #fff,640px 60px #cdf,720px 100px #fff,820px 40px #fff,
+    900px 90px #cce,1000px 60px #fff,1120px 110px #fff,1200px 50px #eef,80px 150px #fff,260px 170px #cdf,
+    520px 160px #fff,760px 150px #fff,980px 170px #cce,1180px 140px #fff;animation:tw 4s ease-in-out infinite}
+  .stars.s2{box-shadow:30px 70px #fff,180px 30px #cdf,360px 130px #fff,500px 80px #fff,680px 40px #cce,
+    860px 120px #fff,1040px 80px #fff,1220px 100px #fff;animation-delay:2s;opacity:.7}
+  @keyframes tw{50%{opacity:.45}}
+  .moon{position:absolute;top:42px;right:8%;width:52px;height:52px;border-radius:50%;
+    background:radial-gradient(circle at 38% 35%,#fdfbe9,#e8e3c4);box-shadow:0 0 34px 10px rgba(247,243,210,.28)}
+  .fuji{position:absolute;bottom:140px;left:50%;transform:translateX(-55%);width:0;height:0;
+    border-left:130px solid transparent;border-right:130px solid transparent;border-bottom:120px solid #1d2748;opacity:.9}
+  .fuji::after{content:"";position:absolute;left:-34px;top:0;width:0;height:0;
+    border-left:34px solid transparent;border-right:34px solid transparent;border-bottom:30px solid #d9e2ff;opacity:.85}
+  /* torii */
+  .torii{position:absolute;bottom:150px;left:9%;width:92px;height:104px;opacity:.96}
+  .torii i{position:absolute;background:var(--torii);box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
+  .torii .top{top:0;left:-6px;width:104px;height:11px;border-radius:3px}
+  .torii .top2{top:22px;left:4px;width:84px;height:9px}
+  .torii .pl{top:8px;left:14px;width:11px;height:96px}
+  .torii .pr{top:8px;right:14px;width:11px;height:96px}
+  /* lantern string */
+  .lstring{position:absolute;top:0;left:0;right:0;height:70px}
+  .lstring .wire{position:absolute;top:14px;left:0;right:0;height:2px;background:rgba(255,255,255,.12)}
+  .lantern{position:absolute;top:18px;width:20px;height:26px;border-radius:7px;background:#e8473a;
+    box-shadow:0 0 14px 2px rgba(255,150,90,.55),inset 0 0 6px rgba(255,220,120,.7);
+    transform-origin:top center;animation:sway 3.4s ease-in-out infinite}
+  .lantern::before{content:"";position:absolute;top:-4px;left:6px;width:8px;height:4px;background:#7a2a22}
+  .lantern::after{content:"";position:absolute;bottom:-4px;left:6px;width:8px;height:4px;background:#ffcf6b}
+  @keyframes sway{50%{transform:rotate(7deg)}}
+  /* trees on the ridge */
+  .tree{position:absolute;bottom:104px;width:30px;height:38px;background:#16351f;
+    clip-path:polygon(50% 0,66% 24%,57% 24%,76% 50%,63% 50%,86% 80%,14% 80%,37% 50%,24% 50%,34% 24%,25% 24%)}
+  .tree::after{content:"";position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);width:5px;height:9px;background:#3a2614}
+  .tree.sakura{background:#6e3a55}
+  /* waterfall + koi pond */
+  .cliff{position:absolute;bottom:96px;right:13%;width:46px;height:120px;background:#1a2238;border-radius:0 0 6px 6px}
+  .fall{position:absolute;bottom:96px;right:15%;width:22px;height:118px;overflow:hidden;background:rgba(190,225,255,.5)}
+  .fall::before{content:"";position:absolute;inset:-14px 0;
+    background:repeating-linear-gradient(rgba(255,255,255,.85) 0 5px,rgba(150,200,255,.55) 5px 12px);animation:fall .5s linear infinite}
+  @keyframes fall{to{transform:translateY(12px)}}
+  .ground{position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(#16351f,#0e2415);
+    border-top:3px solid #1f4a2b}
+  .pond{position:absolute;bottom:34px;right:6%;width:200px;max-width:46vw;height:60px;border-radius:50%;
+    background:radial-gradient(circle at 50% 40%,rgba(80,150,210,.55),rgba(20,60,110,.5));
+    box-shadow:0 0 22px rgba(90,160,220,.25);overflow:hidden}
+  .koi{position:absolute;top:50%;width:16px;height:7px;border-radius:50%;background:#ff8a3d;box-shadow:0 0 6px rgba(255,140,60,.6)}
+  .koi.k1{animation:swim1 7s ease-in-out infinite}
+  .koi.k2{background:#ffd0a0;top:62%;animation:swim2 9s ease-in-out infinite}
+  .koi.k3{background:#ff6f4d;top:38%;animation:swim1 11s ease-in-out infinite reverse}
+  @keyframes swim1{0%{left:-20px}50%{left:90%;transform:scaleX(-1)}100%{left:-20px}}
+  @keyframes swim2{0%{left:100%;transform:scaleX(-1)}50%{left:0}100%{left:100%;transform:scaleX(-1)}}
+  /* falling sakura petals */
+  .petals{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+  .petal{position:absolute;top:-16px;width:9px;height:9px;background:var(--sakura);border-radius:9px 1px 9px 1px;opacity:.85;
+    animation:petal linear infinite}
+  @keyframes petal{0%{transform:translateY(-20px) translateX(0) rotate(0)}
+    100%{transform:translateY(102vh) translateX(60px) rotate(420deg)}}
+
+  /* ===== Content ===== */
+  .wrap{position:relative;z-index:2;max-width:960px;margin:0 auto;padding:20px 16px 40px}
+  .hd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+  .logo{font-size:15px;color:var(--gold);text-shadow:2px 2px 0 #000}
+  .sub{color:var(--muted);font-size:13px;margin-top:6px}
+  .sect{font-size:13px;color:var(--muted);margin:18px 2px 8px;letter-spacing:.5px;text-transform:uppercase}
   h1{font-size:20px;margin:0}
-  .sub{color:var(--muted);font-size:13px;margin-top:2px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
-    padding:16px;margin-top:14px}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:780px){.grid{grid-template-columns:1.05fr .95fr;align-items:start}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:14px;
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+  .col>.card:first-child{margin-top:0}
   .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .slot{font-size:22px;font-weight:700}
   .role{color:var(--muted);font-size:13px}
   .badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap}
-  .b-none{background:#475569;color:#e2e8f0}
-  .b-open{background:rgba(34,197,94,.15);color:var(--green)}
-  .b-closed{background:rgba(56,189,248,.15);color:var(--accent)}
+  .b-none{background:rgba(120,140,190,.25);color:#dbe4fb}
+  .b-open{background:rgba(82,201,122,.18);color:var(--green)}
+  .b-closed{background:rgba(127,208,255,.16);color:var(--accent)}
   .times{margin-top:10px;font-size:13px;color:var(--muted);line-height:1.6}
-  .otbig{font-size:18px;font-weight:700;color:var(--accent)}
   .btns{display:flex;gap:10px;margin-top:14px}
-  button{font:inherit;border:0;border-radius:12px;padding:12px;font-weight:600;
-    cursor:pointer;flex:1;color:#fff;transition:opacity .15s}
-  button:active{opacity:.7}
+  button{font:inherit;border:0;border-radius:12px;padding:12px;font-weight:600;cursor:pointer;flex:1;color:#fff;transition:opacity .15s,transform .05s}
+  button:active{opacity:.7;transform:translateY(1px)}
   button:disabled{opacity:.35;cursor:default}
   .bi{background:var(--green)}
-  .bo{background:var(--accent);color:#0f172a}
-  .ghost{background:var(--card2);color:var(--txt)}
-  .switch{display:flex;align-items:center;justify-content:space-between;
-    padding:12px 0;border-top:1px solid var(--line)}
+  .bo{background:var(--gold);color:#1a1206}
+  .switch{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line)}
   .switch:first-child{border-top:0}
-  .toggle{width:50px;height:30px;border-radius:999px;background:#475569;
-    position:relative;flex:0 0 auto;transition:background .2s}
+  .toggle{width:50px;height:30px;border-radius:999px;background:#43506f;position:relative;flex:0 0 auto;transition:background .2s}
   .toggle.on{background:var(--green)}
-  .knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
-    background:#fff;transition:left .2s}
+  .knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s}
   .toggle.on .knob{left:23px}
-  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
-    background:#0b1220;border:1px solid var(--line);padding:10px 16px;border-radius:12px;
-    font-size:14px;max-width:90%;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0b1220;border:1px solid var(--line);
+    padding:10px 16px;border-radius:12px;font-size:14px;max-width:90%;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30}
   .toast.show{opacity:1}
   .toast.err{border-color:var(--red);color:#fecaca}
-  input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);
-    background:var(--card);color:var(--txt);font-size:18px;text-align:center;letter-spacing:4px}
+  input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);background:rgba(10,15,31,.6);
+    color:var(--txt);font-size:18px;text-align:center;letter-spacing:4px}
   .muted{color:var(--muted);font-size:13px}
   .center{text-align:center}
-  .link{color:var(--accent);font-size:13px;background:none;flex:0;padding:4px}
-  .spin{display:inline-block;width:16px;height:16px;border:2px solid #fff5;
-    border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-3px}
+  .link{color:var(--accent);font-size:13px;background:none;flex:0;padding:4px;width:auto}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid #fff5;border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-3px}
   @keyframes s{to{transform:rotate(360deg)}}
 
-  /* ===== OT block — Japanese pixel-art scene ===== */
-  .ot{padding:0;overflow:hidden}
-  .ot-scene{position:relative;height:160px;overflow:hidden;image-rendering:pixelated;
-    background:linear-gradient(#a9def6 0%,#cdeefb 42%,#bfe9c4 42%,#a9dcae 100%)}
-  /* drifting clouds */
-  .ot-cloud{position:absolute;background:#fff;border-radius:8px;opacity:.9;
-    box-shadow:14px 6px 0 0 #fff,28px 0 0 -2px #fff}
-  .ot-cloud.c1{top:16px;width:22px;height:10px;animation:drift 26s linear infinite}
-  .ot-cloud.c2{top:34px;width:16px;height:8px;opacity:.7;animation:drift 38s linear infinite}
-  @keyframes drift{from{left:-60px}to{left:120%}}
-  /* sun */
-  .ot-sun{position:absolute;top:14px;right:20px;width:24px;height:24px;border-radius:50%;
-    background:#ffd45e;box-shadow:0 0 0 5px rgba(255,229,150,.5)}
-  /* Mt. Fuji */
-  .ot-fuji{position:absolute;bottom:54px;left:50%;transform:translateX(-50%);
-    width:0;height:0;border-left:78px solid transparent;border-right:78px solid transparent;
-    border-bottom:64px solid #8aa0c8}
-  .ot-fuji::after{content:"";position:absolute;left:-22px;top:0;width:0;height:0;
-    border-left:22px solid transparent;border-right:22px solid transparent;border-bottom:18px solid #f5f7ff}
-  /* cliff + waterfall */
-  .ot-cliff{position:absolute;top:40px;left:30px;width:34px;height:78px;background:#6b5847;
-    border-radius:0 0 4px 4px;box-shadow:inset -4px 0 0 #5a4838,inset 4px 0 0 #7d6a57}
-  .ot-fall{position:absolute;top:42px;left:38px;width:18px;height:72px;overflow:hidden;
-    background:#dff4ff;box-shadow:0 0 6px rgba(190,233,255,.9)}
-  .ot-fall::before{content:"";position:absolute;inset:-12px 0;
-    background:repeating-linear-gradient(#ffffff 0 5px,#bfe6ff 5px 12px);animation:fall .45s linear infinite}
-  @keyframes fall{to{transform:translateY(12px)}}
-  .ot-pool{position:absolute;top:108px;left:26px;width:42px;height:12px;border-radius:50%;
-    background:radial-gradient(#cdeeff,#9fd6f5);animation:ripple 2.4s ease-in-out infinite}
-  @keyframes ripple{50%{transform:scaleX(1.18)}}
-  /* meadow */
-  .ot-grass{position:absolute;left:0;right:0;bottom:0;height:46px;background:#7cc47f;
-    border-top:3px solid #5fae6a;
-    background-image:repeating-linear-gradient(90deg,transparent 0 8px,rgba(95,174,106,.5) 8px 9px)}
-  .ot-grass::before{content:"";position:absolute;top:-6px;left:0;right:0;height:8px;
-    background:repeating-linear-gradient(90deg,#5fae6a 0 3px,transparent 3px 12px)}
-  /* pixel pine trees */
-  .tree{position:absolute;bottom:34px;width:26px;height:32px;background:#2f8f43;
-    clip-path:polygon(50% 0,66% 24%,57% 24%,76% 50%,63% 50%,86% 80%,14% 80%,37% 50%,24% 50%,34% 24%,25% 24%)}
-  .tree::after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
-    width:5px;height:8px;background:#6d4321}
-  .tree.t2{transform:scale(.8);filter:brightness(.92)}
-  .tree.t3{transform:scale(1.15);filter:brightness(1.05)}
-  .tree.sakura{background:#f7a8c4}
-  /* title chip */
-  .ot-title{position:absolute;top:10px;left:12px;font-family:"Press Start 2P",monospace;
-    font-size:11px;color:#1f3a26;text-shadow:1px 1px 0 #fff;letter-spacing:1px}
-  /* stats panel */
-  .ot-panel{background:#12241a;padding:14px}
-  .ot-tabs{display:flex;gap:8px;margin-bottom:12px}
-  .ot-tab{flex:1;background:#23402f;color:#bfe9c4;border-radius:10px;padding:9px;
-    font-size:13px;font-weight:600}
-  .ot-tab.on{background:#3fae5a;color:#082011}
-  .ot-stat{display:flex;align-items:baseline;justify-content:space-between;
-    padding:8px 0;border-top:1px solid #21402d}
+  /* ===== OT block (night, lantern-lit) ===== */
+  .ot .ot-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .ot .ot-name{font-size:11px;color:var(--gold);text-shadow:1px 1px 0 #000}
+  .ot-tabs{display:flex;gap:8px;margin-bottom:14px}
+  .ot-tab{flex:1;background:var(--card2);color:#cfe0ff;border-radius:10px;padding:9px;font-size:13px;font-weight:600}
+  .ot-tab.on{background:var(--gold);color:#1a1206}
+  .ot-stat{display:flex;align-items:baseline;justify-content:space-between;padding:11px 0;border-top:1px solid var(--line)}
   .ot-stat:first-of-type{border-top:0}
-  .ot-k{color:#8fc79b;font-size:13px}
-  .ot-v{font-family:"Press Start 2P",monospace;font-size:14px;color:#eafff0}
-  .ot-money .ot-v{color:#ffd45e;font-size:13px}
-  .ot-sub{margin-top:8px;color:#6fae80;font-size:12px;text-align:right}
+  .ot-k{color:var(--muted);font-size:13px}
+  .ot-v{font-size:13px;color:#eafff0}
+  .ot-money{margin-top:2px}
+  .ot-money .ot-k{color:var(--gold)}
+  .ot-money .ot-v{color:var(--gold);font-size:15px}
+  .ot-sub{margin-top:10px;color:var(--muted);font-size:12px;text-align:right}
 </style>
 </head>
 <body>
+<div class="scene">
+  <div class="stars"></div><div class="stars s2"></div>
+  <div class="moon"></div>
+  <div class="fuji"></div>
+  <div class="torii"><i class="top"></i><i class="top2"></i><i class="pl"></i><i class="pr"></i></div>
+  <div class="lstring"><div class="wire"></div>
+    <div class="lantern" style="left:18%"></div><div class="lantern" style="left:34%;animation-delay:.6s"></div>
+    <div class="lantern" style="left:52%;animation-delay:1.1s"></div><div class="lantern" style="left:70%;animation-delay:.3s"></div>
+    <div class="lantern" style="left:86%;animation-delay:.9s"></div>
+  </div>
+  <div class="tree" style="left:24%"></div>
+  <div class="tree sakura" style="left:33%;bottom:106px"></div>
+  <div class="tree" style="left:60%"></div>
+  <div class="tree sakura" style="left:70%;bottom:108px"></div>
+  <div class="cliff"></div><div class="fall"></div>
+  <div class="ground"></div>
+  <div class="pond"><div class="koi k1"></div><div class="koi k2"></div><div class="koi k3"></div></div>
+</div>
+<div class="petals">
+  <span class="petal" style="left:6%;animation-duration:9s;animation-delay:0s"></span>
+  <span class="petal" style="left:18%;animation-duration:12s;animation-delay:2s"></span>
+  <span class="petal" style="left:30%;animation-duration:10s;animation-delay:4s"></span>
+  <span class="petal" style="left:44%;animation-duration:13s;animation-delay:1s"></span>
+  <span class="petal" style="left:57%;animation-duration:8s;animation-delay:3s"></span>
+  <span class="petal" style="left:69%;animation-duration:11s;animation-delay:5s"></span>
+  <span class="petal" style="left:81%;animation-duration:10s;animation-delay:1.5s"></span>
+  <span class="petal" style="left:93%;animation-duration:12s;animation-delay:3.5s"></span>
+</div>
+
 <div class="wrap">
   <!-- PIN gate -->
   <div id="gate" style="display:none">
-    <div class="center" style="margin-top:40px">
-      <h1>Shift Auto</h1>
-      <p class="muted">Nhập mã PIN để tiếp tục</p>
+    <div class="center" style="margin-top:8vh">
+      <div class="logo px" style="font-size:20px">SHIFT AUTO</div>
+      <p class="muted" style="margin-top:14px">Nhập mã PIN để tiếp tục</p>
     </div>
-    <div class="card">
+    <div class="card" style="max-width:360px;margin:14px auto 0">
       <input id="pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off">
       <div class="btns"><button class="bo" id="pinBtn">Vào</button></div>
     </div>
@@ -141,58 +189,51 @@ export function renderHTML() {
 
   <!-- App -->
   <div id="app" style="display:none">
-    <div class="row">
-      <div><h1>Ca hôm nay</h1><div class="sub" id="dateline">—</div></div>
+    <div class="hd">
+      <div><div class="logo px">SHIFT AUTO</div><div class="sub" id="dateline">—</div></div>
       <button class="link" id="refreshBtn">↻ Tải lại</button>
     </div>
-    <div id="shifts"></div>
-    <div class="card ot" id="otCard" style="display:none">
-      <div class="ot-scene">
-        <div class="ot-cloud c1"></div>
-        <div class="ot-cloud c2"></div>
-        <div class="ot-sun"></div>
-        <div class="ot-fuji"></div>
-        <div class="ot-cliff"></div>
-        <div class="ot-fall"></div>
-        <div class="ot-pool"></div>
-        <div class="tree t2" style="left:78px"></div>
-        <div class="tree sakura" style="left:104px;bottom:36px"></div>
-        <div class="tree" style="left:140px"></div>
-        <div class="tree t3" style="left:172px"></div>
-        <div class="tree t2" style="left:210px"></div>
-        <div class="tree" style="left:246px"></div>
-        <div class="ot-grass"></div>
-        <div class="ot-title">&#9962; GIO OT</div>
-      </div>
-      <div class="ot-panel">
-        <div class="ot-tabs">
-          <button class="ot-tab on" id="otTabMonth">Tháng này</button>
-          <button class="ot-tab" id="otTabAll">Tất cả (all-time)</button>
+
+    <div class="grid">
+      <div class="col">
+        <div class="sect">Ca hôm nay</div>
+        <div id="shifts"></div>
+        <div class="card">
+          <div class="switch">
+            <div><div style="font-weight:600">Tự động check-in/out</div>
+              <div class="muted">Chạy trên cloud theo giờ ca</div></div>
+            <div class="toggle" id="tgAuto"><div class="knob"></div></div>
+          </div>
+          <div class="switch">
+            <div><div style="font-weight:600">Bỏ qua hôm nay</div>
+              <div class="muted">Không tự động trong hôm nay</div></div>
+            <div class="toggle" id="tgSkip"><div class="knob"></div></div>
+          </div>
+          <div class="switch">
+            <div><div style="font-weight:600">Báo Slack</div>
+              <div class="muted">Gửi thông báo Slack khi check-in/out</div></div>
+            <div class="toggle" id="tgSlack"><div class="knob"></div></div>
+          </div>
         </div>
-        <div class="ot-stat"><span class="ot-k">Số giờ thực</span><span class="ot-v" id="otRaw">—</span></div>
-        <div class="ot-stat"><span class="ot-k">Đã ×hệ số</span><span class="ot-v" id="otMult">—</span></div>
-        <div class="ot-stat ot-money"><span class="ot-k">Thực nhận</span><span class="ot-v" id="otMoney">—</span></div>
-        <div class="ot-sub" id="otSub"></div>
+      </div>
+
+      <div class="col">
+        <div class="sect">Thống kê OT</div>
+        <div class="card ot" id="otCard" style="display:none">
+          <div class="ot-head"><span class="ot-name px">&#9962; GIO OT</span></div>
+          <div class="ot-tabs">
+            <button class="ot-tab on" id="otTabMonth">Tháng này</button>
+            <button class="ot-tab" id="otTabAll">Tất cả</button>
+          </div>
+          <div class="ot-stat"><span class="ot-k">Số giờ thực</span><span class="ot-v px" id="otRaw">—</span></div>
+          <div class="ot-stat"><span class="ot-k">Đã ×hệ số</span><span class="ot-v px" id="otMult">—</span></div>
+          <div class="ot-stat ot-money"><span class="ot-k">Thực nhận</span><span class="ot-v px" id="otMoney">—</span></div>
+          <div class="ot-sub" id="otSub"></div>
+        </div>
       </div>
     </div>
-    <div class="card">
-      <div class="switch">
-        <div><div style="font-weight:600">Tự động check-in/out</div>
-          <div class="muted">Chạy trên cloud theo giờ ca</div></div>
-        <div class="toggle" id="tgAuto"><div class="knob"></div></div>
-      </div>
-      <div class="switch">
-        <div><div style="font-weight:600">Bỏ qua hôm nay</div>
-          <div class="muted">Không tự động trong hôm nay</div></div>
-        <div class="toggle" id="tgSkip"><div class="knob"></div></div>
-      </div>
-      <div class="switch">
-        <div><div style="font-weight:600">Báo Slack</div>
-          <div class="muted">Gửi thông báo Slack khi check-in/out</div></div>
-        <div class="toggle" id="tgSlack"><div class="knob"></div></div>
-      </div>
-    </div>
-    <div class="center" style="margin-top:16px">
+
+    <div class="center" style="margin-top:18px">
       <button class="link" id="logoutBtn">Đăng xuất</button>
     </div>
   </div>
@@ -262,6 +303,8 @@ export function renderHTML() {
     setToggle($("tgSkip"), data.config.skipToday);
     setToggle($("tgSlack"), data.config.slackNotify);
   }
+  function setToggle(el, on){ el.className = "toggle" + (on ? " on" : ""); }
+
   function fmtH(h){ return (Math.round(h * 10) / 10) + "h"; }
   function fmtMoney(v){ return (v || 0).toLocaleString("vi-VN") + "đ"; }
   function renderOt(ot){
@@ -282,7 +325,6 @@ export function renderHTML() {
     $("otTabMonth").className = "ot-tab" + (otView === "month" ? " on" : "");
     $("otTabAll").className = "ot-tab" + (otView === "all" ? " on" : "");
   }
-  function setToggle(el, on){ el.className = "toggle" + (on ? " on" : ""); }
 
   function load(){
     api("status").then(render).catch(function(e){
