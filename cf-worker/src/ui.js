@@ -28,6 +28,7 @@ export function renderHTML() {
   .b-open{background:rgba(34,197,94,.15);color:var(--green)}
   .b-closed{background:rgba(56,189,248,.15);color:var(--accent)}
   .times{margin-top:10px;font-size:13px;color:var(--muted);line-height:1.6}
+  .otbig{font-size:18px;font-weight:700;color:var(--accent)}
   .btns{display:flex;gap:10px;margin-top:14px}
   button{font:inherit;border:0;border-radius:12px;padding:12px;font-weight:600;
     cursor:pointer;flex:1;color:#fff;transition:opacity .15s}
@@ -81,6 +82,13 @@ export function renderHTML() {
       <button class="link" id="refreshBtn">↻ Tải lại</button>
     </div>
     <div id="shifts"></div>
+    <div class="card" id="otCard" style="display:none">
+      <div class="row">
+        <div style="font-weight:600">Giờ OT của tôi</div>
+        <div class="otbig" id="otTotal">—</div>
+      </div>
+      <div class="times" id="otMonths"></div>
+    </div>
     <div class="card">
       <div class="switch">
         <div><div style="font-weight:600">Tự động check-in/out</div>
@@ -162,9 +170,23 @@ export function renderHTML() {
           + '</div></div>';
       }).join("");
     }
+    renderOt(data.ot);
     setToggle($("tgAuto"), data.config.autoEnabled);
     setToggle($("tgSkip"), data.config.skipToday);
     setToggle($("tgSlack"), data.config.slackNotify);
+  }
+  function renderOt(ot){
+    if(!ot){ $("otCard").style.display = "none"; return; }
+    $("otCard").style.display = "block";
+    $("otTotal").textContent = ot.totalHours + "h · " + ot.totalCount + " ca";
+    var months = ot.byMonth || [];
+    if(!months.length){ $("otMonths").textContent = "Chưa có OT nào"; return; }
+    $("otMonths").innerHTML = months.map(function(m){
+      var line = "Tháng " + m.month + ": " + m.hours + "h · " + m.count + " ca";
+      return m.month === ot.thisMonth
+        ? '<b style="color:var(--txt)">' + line + " (tháng này)</b>"
+        : line;
+    }).join("<br>");
   }
   function setToggle(el, on){ el.className = "toggle" + (on ? " on" : ""); }
 

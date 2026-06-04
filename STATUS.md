@@ -2,6 +2,9 @@
 
 Cập nhật: **2026-06-04 ~08:30 ICT**
 
+## 04/06 — Feature: thống kê giờ OT trong app
+- Thêm panel **"Giờ OT của tôi"** trên UI worker (đọc bảng `ot_requests`, gói `getOtStats()` trong `shift.js`; trả trong `/api/status`). Tổng giờ + số ca, tách theo tháng (tô đậm tháng hiện tại). Tính giờ = `slotHours()` (xử cả ca wrap nửa đêm). Hiện tại: **36h / 12 ca** (T6: 15h, T5: 21h). Đây là bản mirror read-only của tab "OT request" trên app gốc (app gốc không sửa được).
+
 ## 04/06 — Feature: auto-checkout khi COVER ca người khác
 - **Vấn đề:** ca bạn *cover* (làm thay) thuộc `member_id` người khác → không nằm trong `getTodayAssignments` (lọc theo bạn) → cron cũ **không bao giờ tự checkout** ca cover.
 - **Giải pháp (đã deploy, version `4afe7aa8`):** thêm **cover sweep** cuối `runAuto`. Nó quét `getOpenCheckins()` = check-in **đang mở mang `member_id` của bạn** (kèm assignment embed), với cái nào chủ ca ≠ bạn và `now ≥ end+CHECKOUT_LAG_MIN` thì `checkoutById()`. **Không auto check-IN cover** (không phát hiện được trước khi có check-in) và **không bắn Slack** (sẽ post nhầm tên chủ ca). `/cron` trả thêm field `covers[]`. Code: `src/shift.js` (`getOpenCheckins`, `checkoutById`) + `src/index.js` (sweep).

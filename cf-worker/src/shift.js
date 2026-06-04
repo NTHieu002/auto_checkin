@@ -33,6 +33,15 @@ export function parseSlot(slot) {
   return { start: +m[1], end: +m[2] };
 }
 
+// Whole-hour duration of a slot, handling wrap past midnight ("23-2" -> 3).
+export function slotHours(slot) {
+  const p = parseSlot(slot);
+  if (!p) return 0;
+  let d = p.end - p.start;
+  if (d <= 0) d += 24;
+  return d;
+}
+
 export function createClient(env) {
   const SUPA = env.SUPABASE_URL || DEFAULT_URL;
   const REST = `${SUPA}/rest/v1`;
@@ -198,6 +207,38 @@ export function createClient(env) {
     return { skipped: false, row: (await r.json())[0] };
   }
 
+  // OT (overtime) hour stats from the ot_requests table — what the app's "OT request"
+  // tab is built on. Counts approved OT (both covers, leave_id set, and plain extra
+  // shifts, leave_id null). Hours come from the embedded assignment's slot duration.
+  async function getOtStats(jwt) {
+    const url =
+      `${REST}/ot_requests` +
+      `?select=id,status,created_at,leave_id,shift_assignments!assignment_id(shift_slot,shift_date)` +
+      `&member_id=eq.${MEMBER_ID}` +
+      `&order=created_at.desc`;
+    const r = await fetch(url, { headers: authHeaders(jwt) });
+    if (!r.ok) throw new Error(`Get OT stats failed: ${r.status} ${await r.text()}`);
+    const rows = await r.json();
+    const thisMonth = ictParts().date.slice(0, 7);
+    const byMonthMap = {};
+    let totalHours = 0,
+      totalCount = 0;
+    for (const o of rows) {
+      if (o.status !== "approved") continue;
+      const a = o.shift_assignments;
+      const h = a ? slotHours(a.shift_slot) : 0;
+      const mo = (a?.shift_date || o.created_at).slice(0, 7);
+      if (!byMonthMap[mo]) byMonthMap[mo] = { month: mo, hours: 0, count: 0 };
+      byMonthMap[mo].hours += h;
+      byMonthMap[mo].count += 1;
+      totalHours += h;
+      totalCount += 1;
+    }
+    const byMonth = Object.values(byMonthMap).sort((a, b) => b.month.localeCompare(a.month));
+    const tm = byMonthMap[thisMonth] || { hours: 0, count: 0 };
+    return { totalHours, totalCount, thisMonth, thisMonthHours: tm.hours, thisMonthCount: tm.count, byMonth };
+  }
+
   // ===== Slack notification (mirrors the web app's post-action server call) =====
 
   // @supabase/ssr auth cookie: sb-<ref>-auth-token = "base64-"+b64(session JSON),
@@ -287,5 +328,5 @@ export function createClient(env) {
     }
   }
 
-  return { getAccessToken, getTodayAssignments, getCheckinState, checkin, checkout, getOpenCheckins, checkoutById, notifySlack };
+  return { getAccessToken, getTodayAssignments, getCheckinState, checkin, checkout, getOpenCheckins, checkoutById, getOtStats, notifySlack };
 }

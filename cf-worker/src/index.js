@@ -61,11 +61,13 @@ async function handleStatus(env) {
     });
   }
   const cfg = await getConfig(env);
+  const ot = await c.getOtStats(jwt);
   const { date, hhmm } = ictParts();
   return {
     date,
     now: hhmm,
     assignments: enriched,
+    ot,
     config: {
       autoEnabled: cfg.autoEnabled,
       skipToday: cfg.skipDates.includes(date),
