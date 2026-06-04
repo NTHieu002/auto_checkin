@@ -46,7 +46,7 @@ Same logic as `auto-shift.js`, restructured for Workers. Entry points in `src/in
 
 - **Auth & session:** same refresh-first / password-fallback as the CLI, but the rotating refresh token lives in **KV** (`SHIFT_KV`, key `session`) instead of a file. `createClient()` keeps the **full auth session in a closure variable `session`** (not just the token) because the Slack cookie needs it. ⚠️ Don't shadow that variable — `tryRefresh()` uses a *separate* local `stored` for the KV blob precisely so `session = data` reaches the closure (a shadow bug here silently disabled Slack while DB writes kept working).
 - **Cron reconciliation (`runAuto`):** idempotent and self-correcting — check in when `now ∈ [start−CHECKIN_LEAD_MIN, end)` and not yet checked in; check out when `now ≥ end+CHECKOUT_LAG_MIN` and a check-in is open. Times are derived in ICT (`ictParts`). It returns a `{date, now, actions[], covers[]}` summary (surfaced over `/cron`, since Cloudflare logs aren't queryable via API on this account). `CHECKIN_LEAD_MIN`/`CHECKOUT_LAG_MIN` define the **exact action instants**; the trigger just has to fire often enough to land inside each window.
-- **Cover auto-checkout (`runAuto` cover sweep):** a shift the user *covers* for someone else belongs to a different member, so it never appears in `getTodayAssignments` (which filters `member_id=eq.MEMBER_ID`). But the check-in row carries *our* `member_id`, so after the own-assignment loop, `runAuto` scans `getOpenCheckins()` (open check-ins under our member, with the assignment embedded) and checks out any whose assignment owner ≠ us once `now ≥ end+CHECKOUT_LAG_MIN` (via `checkoutById()`). It **never auto checks-IN covers** (a cover can't be detected before its check-in exists) and **never fires Slack for them** (Slack would post under the shift owner's name). Covers are reported in the `covers[]` summary. Verified live 04/06: a 5-8 cover auto-checked-out at 08:05 ICT off the external cron. **NB:** like own shifts, this only fires for covers ending inside the ~07:00–19:00 ICT trigger window. The proper cover handshake itself lives in the **`leaves`** table (`covered_by`, `status='covered'`) — see Supabase REST contract; a raw check-in without that row is an "orphan" the app won't display.
+- **Cover auto-checkout (`runAuto` cover sweep):** a shift the user *covers* for someone else belongs to a different member, so it never appears in `getTodayAssignments` (which filters `member_id=eq.MEMBER_ID`). But the check-in row carries *our* `member_id`, so after the own-assignment loop, `runAuto` scans `getOpenCheckins()` (open check-ins under our member, with the assignment embedded) and checks out any whose assignment owner ≠ us once `now ≥ end+CHECKOUT_LAG_MIN` (via `checkoutById()`). It **never auto checks-IN covers** (a cover can't be detected before its check-in exists) and **never fires Slack for them** (Slack would post under the shift owner's name). Covers are reported in the `covers[]` summary. Verified live 04/06: a 5-8 cover auto-checked-out at 08:05 ICT off the external cron. **NB:** like own shifts, this only fires for covers ending inside the ~07:00–19:00 ICT trigger window. The full cover *handshake* (making a cover the app actually displays) spans **three** tables — `leaves` + `ot_requests` + `checkins` — see "Leave / cover / OT data model" below; a raw check-in alone is an "orphan" the app won't show.
 - **Triggering is dual + redundant.** Cloudflare free-tier cron proved unreliable (29/05: it fired *zero* times all day — verified by a ~40-min live `wrangler tail` showing no `scheduled` events while the schedule was registered and the worker healthy). So the **primary** trigger is now an **external scheduler (cron-job.org) GETting `/cron?key=<CRON_KEY>` every ~5 min**; the Cloudflare cron (`*/5 0-11 * * 1-5`, ~07:00–18:55 ICT Mon–Fri) is kept only as best-effort backup. Because `runAuto` is idempotent, firing every 5 min from either source is safe — the first fire in a window acts, the rest skip.
 - **Config in KV** (`config`): `{ autoEnabled, skipDates, slackNotify }`, all default-on; surfaced/toggled via `/api/config` and the UI switches.
 - **Vars vs secrets:** public-safe values (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `MEMBER_ID`) are in `wrangler.toml`; `EMAIL`, `PASSWORD`, `UI_PIN`, `CRON_KEY` are Worker secrets. Deploy with `npx wrangler deploy` from `cf-worker/`.
@@ -72,9 +72,31 @@ Base: `https://qktvfncduxmoijzfqbdb.supabase.co`. All calls send the anon `apike
 | `/rest/v1/checkins` | GET | Find open / latest check-in for an assignment |
 | `/rest/v1/checkins` | POST | Create check-in |
 | `/rest/v1/checkins?id=eq.X` | PATCH | Set checkout time |
-| `/rest/v1/leaves` | GET/PATCH | Leave + cover records. Key cols: `member_id` (person off), `assignment_id`, `covered_by`, `covered_at`, `status` (`approved`→`covered`). **The cover handshake**: "taking" a covered shift = PATCH the leave to `covered_by=<you>, status='covered'` *and* POST a check-in under your `member_id`. Doing only the check-in leaves an orphan the app won't show; doing both makes a recognised cover. RLS lets an authenticated member set `covered_by` to themselves. `checkins` cannot be DELETEd by a normal member (no RLS delete policy) — only UPDATE/INSERT. |
+| `/rest/v1/leaves` | GET/PATCH | Leave + cover records — see data model below. |
+| `/rest/v1/ot_requests` | GET/POST | Overtime/cover requests — the "OT request" tab reads this. See data model below. |
 
 Failures are surfaced via `die()` (prints, exits 1). A 400 on refresh means the token chain is dead; a 403 on write usually means RLS rejected it (shift covered, or `MEMBER_ID` ≠ JWT `sub`). DELETE on `checkins` silently affects 0 rows (no delete policy).
+
+## Leave / cover / OT data model (Shift Manager schema, reverse-engineered 04/06)
+
+Tables visible to a normal `authenticated` member via REST (RLS-scoped; no `service_role`):
+
+| Table | Rows~ | Columns |
+|---|---|---|
+| `members` | 28 | `id, email, name, is_admin, created_at` |
+| `shift_assignments` | 5049 | `id, member_id, shift_date, shift_slot, created_at, is_sl, status, role` |
+| `checkins` | 368 | `id, assignment_id, member_id, checkin_time, checkin_text, checkout_time, checkout_text, created_at` — **no `role` column**; **no DELETE RLS policy** (DELETE returns 0 rows; only INSERT/UPDATE work) |
+| `leaves` | 51 | `id, member_id, assignment_id, reason, screenshot_url, status, covered_by, covered_at, created_at, approved_by, approved_at, rejected_by, rejected_at, rejection_reason` |
+| `ot_requests` | 36 | `id, member_id, leave_id, assignment_id, status, approved_by, approved_at, rejected_by, rejected_at, rejection_reason, created_at` |
+
+**Shift slots** tile the whole 24h day in 3-hour blocks: `2-5, 5-8, 8-11, 11-14, 14-17, 17-20, 20-23, 23-2` (literal ICT hours; `23-2` wraps midnight — `parseSlot` returns `end<start` for it, which the worker's window math doesn't handle, but such shifts fall outside the 07:00–19:00 trigger window anyway).
+
+**Cover handshake — taking a teammate's leave-shift requires writing THREE rows** (the web app does all three when you "nhận ca"; doing fewer leaves it invisible):
+1. **`leaves`** PATCH: set `covered_by=<you>`, `status='covered'`, `covered_at`. (The person off is `member_id`; their leave starts `approved` once self/admin-approved.)
+2. **`ot_requests`** POST: `{ member_id:<you>, leave_id:<the leave>, assignment_id, status:'approved', approved_by:<you>, approved_at }` — **this is what the "OT request" tab on `/dashboard/leave` lists.** Covers auto-approve (the live 5-8 row had `approved_by` = the coverer, ~2s after create). Non-cover OT (working an extra shift) also lands here with `leave_id=null`.
+3. **`checkins`** POST under your own `member_id` (then checkout). The cover auto-checkout sweep above closes it.
+
+RLS permits an authenticated member to set `covered_by`/insert their own `ot_requests`/insert checkins (member_id must = JWT `sub`). It does **not** let you UPDATE someone else's `shift_assignments` (e.g. reassign a shift's owner → PATCH returns 200 but 0 rows) or DELETE a `checkins` row. `/dashboard/leave` is server-rendered (RSC) — its data isn't in the page HTML or client JS bundle; the page lists the viewer's *own* leaves plus an OT-request tab.
 
 ## Slack server action contract
 
