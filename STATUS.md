@@ -2,6 +2,11 @@
 
 Cập nhật: **2026-06-04 ~08:30 ICT**
 
+## 04/06 (tối) — UI: nâng cấp layered + animated (gold + jade)
+- Theo design direction user đưa: nền **phân tầng 4 lớp parallax** (xa: gradient+sao+trăng; núi: ridge+Phú Sĩ; giữa: **chùa pagoda**+torii; gần: đèn lồng+cây+hồ koi) — dịch nhẹ theo `pointermove` (rAF mượt, tắt khi reduced-motion). Lớp `.fx` riêng: hoa anh đào rơi + **đom đóm** phát sáng.
+- Card kính mờ: hover nhấc nhẹ, entrance `reveal` so le, **viền glow hổ phách** trên ca đang mở. Nút Check-in có **shimmer**, toggle bật có glow.
+- Palette 2 tông: **gold = accent chính**, **jade green = highlight** (badge "đã xong", nút check-out, số ×hệ số). Radius khoá (card 18/nút 12/pill). Version `527f9bcc`.
+
 ## 04/06 — Redesign UI: night theme tinh chỉnh (dùng skill design-taste-frontend)
 - User cài skill `design-taste-frontend` rồi yêu cầu design lại "phong cách Nhật, ban đêm". Làm theo kỷ luật skill: **1 theme đêm khoá cứng, 1 accent trang trí = hổ phách đèn lồng** (xanh/xám chỉ cho semantic state), **1 hệ radius** (card 16 / nút 12 / pill), **glass card đúng cách** (highlight trong + shadow nhuốm màu, không neon), font **Be Vietnam Pro** (chuẩn tiếng Việt, KHÔNG Inter, bỏ pixel font), contrast nút WCAG-AA, **0 em-dash**, fallback `prefers-reduced-motion`/`-transparency`.
 - Cảnh nền CSS thuần: gradient indigo + sao + trăng, bóng Phú Sĩ + torii, đèn lồng đung đưa, bóng đồi/cây, hồ koi tĩnh, hoa anh đào rơi; card kính mờ nổi trên. Desktop 2 cột (≥820px) → 1 cột mobile. Toàn bộ trong `cf-worker/src/ui.js`. Deploy version `edb7430a`.
