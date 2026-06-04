@@ -6,3 +6,8 @@ node_modules/
 .wrangler/
 .cron-key.txt
 cf-worker/.cron-key.txt
+
+# Third-party agent skills (installed via `npx skills add`) — not part of the app
+.claude/
+.agents/
+skills-lock.json
