@@ -2,11 +2,10 @@
 
 Cập nhật: **2026-06-04 ~08:30 ICT**
 
-## 04/06 — Redesign TOÀN BỘ UI: pixel-art Nhật, tông đêm
-- Cả app giờ là **1 cảnh pixel xuyên suốt, tông đêm + đèn lồng**: trời sao + trăng, núi Phú Sĩ, **cổng torii**, dãy **đèn lồng** đung đưa, **thác nước động + hồ cá koi** bơi, cây thông/sakura, **hoa anh đào rơi** phủ toàn màn. Card bán trong suốt (blur) nổi trên cảnh.
-- **Desktop-first + responsive:** `.grid` 2 cột (≥780px: Ca hôm nay + điều khiển | OT) → gộp 1 cột trên mobile.
-- Font pixel "Press Start 2P" chỉ cho logo + số (font này không có dấu tiếng Việt nên chữ thường vẫn dùng sans).
-- Toàn bộ trong `cf-worker/src/ui.js`. Deploy version `1ef98b18`.
+## 04/06 — Redesign UI: night theme tinh chỉnh (dùng skill design-taste-frontend)
+- User cài skill `design-taste-frontend` rồi yêu cầu design lại "phong cách Nhật, ban đêm". Làm theo kỷ luật skill: **1 theme đêm khoá cứng, 1 accent trang trí = hổ phách đèn lồng** (xanh/xám chỉ cho semantic state), **1 hệ radius** (card 16 / nút 12 / pill), **glass card đúng cách** (highlight trong + shadow nhuốm màu, không neon), font **Be Vietnam Pro** (chuẩn tiếng Việt, KHÔNG Inter, bỏ pixel font), contrast nút WCAG-AA, **0 em-dash**, fallback `prefers-reduced-motion`/`-transparency`.
+- Cảnh nền CSS thuần: gradient indigo + sao + trăng, bóng Phú Sĩ + torii, đèn lồng đung đưa, bóng đồi/cây, hồ koi tĩnh, hoa anh đào rơi; card kính mờ nổi trên. Desktop 2 cột (≥820px) → 1 cột mobile. Toàn bộ trong `cf-worker/src/ui.js`. Deploy version `edb7430a`.
+- (Lịch sử trong ngày: pixel-đêm → thử nền ẢNH Phú Sĩ ban ngày (user chê → revert) → night theme tinh chỉnh này.)
 
 ## 04/06 — Feature: thống kê giờ OT + lương trong app (pixel art)
 - Block **OT riêng**, thiết kế **pixel-art kiểu Nhật** (thác nước động, núi Phú Sĩ, cây thông/sakura, đồng cỏ; font "Press Start 2P" cho số). Đọc `ot_requests` qua `getOtStats()` (`shift.js`), trả trong `/api/status`.
