@@ -177,7 +177,13 @@ export function createClient(env) {
     const r = await fetch(url, { headers: authHeaders(jwt) });
     if (!r.ok) throw new Error(`Get open checkins failed: ${r.status} ${await r.text()}`);
     const rows = await r.json();
-    return rows.filter((x) => x.shift_assignments?.shift_date === today);
+    // Today + yesterday: a shift that wraps past midnight (e.g. 23-2) has shift_date =
+    // yesterday once we're into the small hours, so today-only would miss it.
+    const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+    return rows.filter((x) => {
+      const d = x.shift_assignments?.shift_date;
+      return d === today || d === yesterday;
+    });
   }
 
   // Close a specific check-in row by id. Used for covers, where we don't go through an

@@ -9,18 +9,19 @@ SUPABASE_URL = "https://qktvfncduxmoijzfqbdb.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrdHZmbmNkdXhtb2lqemZxYmRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMzYxMDIsImV4cCI6MjA5NDkxMjEwMn0.l8m0JA3CKo66BXISjWQbUQwTxwKIguj9EUaEmQTZ0LY"
 MEMBER_ID = "135fba41-2c8f-45e4-be00-7ef837930ed0"
 
-# Cron is UTC; Vietnam is UTC+7. Mon–Fri. Cloudflare free-tier cron is best-effort
-# (fires can be delayed many minutes or dropped). So instead of firing once at each
-# exact action moment, we fire EVERY 5 MINUTES across the working span and let runAuto
-# reconcile idempotently: the first fire inside a window performs the action, the rest
-# skip. A dropped/late fire no longer matters as long as one fire in the window lands.
-#   */5 0-11 -> every 5' during UTC 00:00–11:55  (ICT 07:00–18:55)
-# Covers morning check-in ~07:55 / check-out ~11:01 and afternoon check-in ~13:55 /
-# check-out ~17:01, each with many retries. The exact action instants are defined by
-# CHECKIN_LEAD_MIN/CHECKOUT_LAG_MIN in src/index.js, not by the cron minute.
-# NOTE: if shift hours ever move outside ~07:00–19:00 ICT, widen this hour range.
+# Cloudflare free-tier cron is best-effort (fires can be delayed many minutes or
+# dropped). So instead of firing once at each exact action moment, we fire EVERY 5
+# MINUTES and let runAuto reconcile idempotently: the first fire inside a window acts,
+# the rest skip. A dropped/late fire no longer matters as long as one fire lands.
+#   */5 * * * * -> every 5', ALL hours, ALL days (UTC).
+# Now 24/7 (not just daytime Mon–Fri) so the COVER auto-checkout sweep can close shifts
+# that end at any hour — incl. early-morning (2-5 ends 05:00) and overnight (23-2 ends
+# 02:00). Own day-shift check-in/out only acts Mon–Fri daytime regardless (runAuto is
+# idempotent + window-gated by CHECKIN_LEAD_MIN/CHECKOUT_LAG_MIN). NB: this Cloudflare
+# cron is best-effort backup only — the load-bearing trigger is the external cron-job.org
+# pinger, which must ALSO be set to ~24/7 for out-of-window covers to check out on time.
 [triggers]
-crons = ["*/5 0-11 * * 1-5"]
+crons = ["*/5 * * * *"]
 
 [[kv_namespaces]]
 binding = "SHIFT_KV"

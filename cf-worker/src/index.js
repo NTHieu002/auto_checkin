@@ -162,27 +162,37 @@ async function runAuto(env) {
     }
   }
 
-  // Cover sweep: auto check-OUT shifts being covered for someone else. Such a shift
-  // belongs to a different member (so it's absent from `assignments` above), but the
-  // open check-in carries our member_id. We never auto check-IN covers (can't detect a
-  // cover before its check-in exists) and never fire Slack for them (Slack would post
-  // under the shift owner's name). Same timing as own shifts: check out at end + lag.
+  // Cover sweep: auto check-OUT *every* shift being covered for someone else, at any
+  // hour and any date — not just the daytime window. Such a shift belongs to a different
+  // member (so it's absent from `assignments` above), but the open check-in carries our
+  // member_id. We never auto check-IN covers (can't detect a cover before its check-in
+  // exists) and never fire Slack for them (Slack would post under the shift owner's name).
+  // Timing is computed on the FULL end datetime (date + hour), so it handles shifts that
+  // wrap past midnight (e.g. 23-2 ends 02:00 the next day). For this to fire near the real
+  // end of out-of-window shifts (2-5, 23-2), the external trigger must run ~24/7; if it
+  // only fires daytime, the checkout still happens — just at the next fire (late).
   const covers = [];
   const open = await c.getOpenCheckins(jwt);
+  const dayMs = 86400000;
+  const nowAbs = Date.parse(`${date}T00:00:00Z`) / 60000 + nowMin; // ICT minutes, absolute
   for (const ci of open) {
     const a = ci.shift_assignments;
     if (!a || a.member_id === env.MEMBER_ID) continue; // own shifts handled above
     const slot = parseSlot(a.shift_slot);
     if (!slot) continue;
-    const checkoutAt = slot.end * 60 + CHECKOUT_LAG_MIN;
-    const dueAt = `${String(Math.floor(checkoutAt / 60)).padStart(2, "0")}:${String(checkoutAt % 60).padStart(2, "0")}`;
+    // End datetime: if the slot wraps midnight (end <= start) it ends on shift_date + 1.
+    let endMs = Date.parse(`${a.shift_date}T00:00:00Z`);
+    if (slot.end <= slot.start) endMs += dayMs;
+    const endDate = new Date(endMs).toISOString().slice(0, 10);
+    const dueAbs = endMs / 60000 + slot.end * 60 + CHECKOUT_LAG_MIN;
+    const dueAt = `${endDate} ${String(slot.end).padStart(2, "0")}:${String(CHECKOUT_LAG_MIN).padStart(2, "0")}`;
     let acted = false;
-    if (nowMin >= checkoutAt) {
+    if (nowAbs >= dueAbs) {
       const r = await c.checkoutById(jwt, ci.id);
-      console.log(`[auto] cover checkout ${a.shift_slot} (owner ${a.members?.name})`, JSON.stringify(r));
+      console.log(`[auto] cover checkout ${a.shift_slot} ${a.shift_date} (owner ${a.members?.name})`, JSON.stringify(r));
       acted = !r.skipped;
     }
-    covers.push({ slot: a.shift_slot, owner: a.members?.name || null, dueAt, acted });
+    covers.push({ slot: a.shift_slot, date: a.shift_date, owner: a.members?.name || null, dueAt, acted });
   }
 
   return { date, now, shifts: assignments.length, actions, covers };
