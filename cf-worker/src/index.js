@@ -161,7 +161,31 @@ async function runAuto(env) {
       actions.push({ slot: a.shift_slot, action: "checkout", skipped: !!r.skipped, slack });
     }
   }
-  return { date, now, shifts: assignments.length, actions };
+
+  // Cover sweep: auto check-OUT shifts being covered for someone else. Such a shift
+  // belongs to a different member (so it's absent from `assignments` above), but the
+  // open check-in carries our member_id. We never auto check-IN covers (can't detect a
+  // cover before its check-in exists) and never fire Slack for them (Slack would post
+  // under the shift owner's name). Same timing as own shifts: check out at end + lag.
+  const covers = [];
+  const open = await c.getOpenCheckins(jwt);
+  for (const ci of open) {
+    const a = ci.shift_assignments;
+    if (!a || a.member_id === env.MEMBER_ID) continue; // own shifts handled above
+    const slot = parseSlot(a.shift_slot);
+    if (!slot) continue;
+    const checkoutAt = slot.end * 60 + CHECKOUT_LAG_MIN;
+    const dueAt = `${String(Math.floor(checkoutAt / 60)).padStart(2, "0")}:${String(checkoutAt % 60).padStart(2, "0")}`;
+    let acted = false;
+    if (nowMin >= checkoutAt) {
+      const r = await c.checkoutById(jwt, ci.id);
+      console.log(`[auto] cover checkout ${a.shift_slot} (owner ${a.members?.name})`, JSON.stringify(r));
+      acted = !r.skipped;
+    }
+    covers.push({ slot: a.shift_slot, owner: a.members?.name || null, dueAt, acted });
+  }
+
+  return { date, now, shifts: assignments.length, actions, covers };
 }
 
 export default {

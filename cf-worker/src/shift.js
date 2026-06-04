@@ -162,6 +162,36 @@ export function createClient(env) {
     return { skipped: false, row: (await r.json())[0] };
   }
 
+  // Open (no checkout yet) check-ins under OUR member_id, with the shift embedded.
+  // A shift covered for someone else belongs to a different member, so it never appears
+  // in getTodayAssignments — but the check-in row we wrote carries our member_id, so the
+  // cover auto-checkout sweep finds it here. Restricted to today's shifts.
+  async function getOpenCheckins(jwt) {
+    const today = ictParts().date;
+    const url =
+      `${REST}/checkins` +
+      `?select=id,checkin_time,assignment_id,` +
+      `shift_assignments!assignment_id(shift_slot,shift_date,member_id,is_sl,role,members!member_id(name))` +
+      `&member_id=eq.${MEMBER_ID}` +
+      `&checkout_time=is.null`;
+    const r = await fetch(url, { headers: authHeaders(jwt) });
+    if (!r.ok) throw new Error(`Get open checkins failed: ${r.status} ${await r.text()}`);
+    const rows = await r.json();
+    return rows.filter((x) => x.shift_assignments?.shift_date === today);
+  }
+
+  // Close a specific check-in row by id. Used for covers, where we don't go through an
+  // owned assignment. Mirrors checkout()'s write.
+  async function checkoutById(jwt, rowId) {
+    const r = await fetch(`${REST}/checkins?id=eq.${rowId}`, {
+      method: "PATCH",
+      headers: authHeaders(jwt, true),
+      body: JSON.stringify({ checkout_time: new Date().toISOString(), checkout_text: null }),
+    });
+    if (!r.ok) throw new Error(`Cover check-out failed: ${r.status} ${await r.text()}`);
+    return { skipped: false, row: (await r.json())[0] };
+  }
+
   // ===== Slack notification (mirrors the web app's post-action server call) =====
 
   // @supabase/ssr auth cookie: sb-<ref>-auth-token = "base64-"+b64(session JSON),
@@ -251,5 +281,5 @@ export function createClient(env) {
     }
   }
 
-  return { getAccessToken, getTodayAssignments, getCheckinState, checkin, checkout, notifySlack };
+  return { getAccessToken, getTodayAssignments, getCheckinState, checkin, checkout, getOpenCheckins, checkoutById, notifySlack };
 }

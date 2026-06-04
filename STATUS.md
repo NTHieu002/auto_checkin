@@ -1,6 +1,16 @@
 # Shift Auto — Trạng thái & Tiếp tục công việc
 
-Cập nhật: **2026-05-29 ~17:45 ICT**
+Cập nhật: **2026-06-04 ~08:30 ICT**
+
+## 04/06 — Feature: auto-checkout khi COVER ca người khác
+- **Vấn đề:** ca bạn *cover* (làm thay) thuộc `member_id` người khác → không nằm trong `getTodayAssignments` (lọc theo bạn) → cron cũ **không bao giờ tự checkout** ca cover.
+- **Giải pháp (đã deploy, version `4afe7aa8`):** thêm **cover sweep** cuối `runAuto`. Nó quét `getOpenCheckins()` = check-in **đang mở mang `member_id` của bạn** (kèm assignment embed), với cái nào chủ ca ≠ bạn và `now ≥ end+CHECKOUT_LAG_MIN` thì `checkoutById()`. **Không auto check-IN cover** (không phát hiện được trước khi có check-in) và **không bắn Slack** (sẽ post nhầm tên chủ ca). `/cron` trả thêm field `covers[]`. Code: `src/shift.js` (`getOpenCheckins`, `checkoutById`) + `src/index.js` (sweep).
+- ✅ **Verified LIVE 04/06:** ca 5-8 cover (Max nghỉ, Hew nhận) tự checkout lúc **08:05:07 ICT** nhờ cron-job.org fire — không can thiệp tay, không Slack.
+- ⚠️ Vẫn giới hạn khung trigger ~07:00–19:00 ICT (ca kết ngoài khung sẽ không tự — vd ca 2-5 kết 05:00).
+- **Cover ĐÚNG quy trình = bảng `leaves`** (phát hiện 04/06): "nhận ca" trên web = (1) PATCH `leaves` của ca đó `covered_by=<bạn>, status='covered'` **và** (2) tạo check-in dưới `member_id` của bạn. Chỉ làm (2) → check-in "mồ côi", app không hiện. Ca 2-5 hôm nay từng bị lỗi này (chỉ chèn check-in), đã vá bằng cách set `covered_by=Hew` trên leave → thành cover hợp lệ. `checkins` **không DELETE được** bằng tài khoản thường (RLS không có delete policy; DELETE trả 0 dòng).
+- **Lưu ý deploy:** user có 2 account Cloudflare — worker ở **`Nguyentrunghieu002@gmail.com`** (account id `471fa1e3959cd2cba57f77422aacad68`), KHÔNG phải `nthieu.personal`. Khi dùng API token phải kèm `CLOUDFLARE_ACCOUNT_ID=471fa1e…` (wrangler hay cache nhầm account).
+
+## 2026-05-29 ~17:45 ICT (trước đó)
 
 ## Đang chạy ở đâu
 - **Web app + auto check-in/out** đã deploy trên **Cloudflare Worker `shift-auto`**.
