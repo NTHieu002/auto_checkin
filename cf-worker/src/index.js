@@ -132,7 +132,11 @@ async function runAuto(env) {
   const c = createClient(env);
   const jwt = await c.getAccessToken();
   const assignments = await c.getTodayAssignments(jwt);
-  if (!assignments.length) { console.log(`[auto] no shift ${date}`); return { date, now, shifts: 0, actions: [] }; }
+  // NOTE: do NOT early-return when assignments is empty. A day with no *own* shift can
+  // still have open *cover* check-ins that need closing (covers belong to other members,
+  // so they never appear here). The own-shift loop below is a no-op on an empty array,
+  // and the cover sweep that follows must always run.
+  if (!assignments.length) console.log(`[auto] no own shift ${date} (cover sweep still runs)`);
 
   const nowMin = hour * 60 + minute;
   const actions = [];
