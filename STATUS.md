@@ -1,6 +1,15 @@
 # Shift Auto — Trạng thái & Tiếp tục công việc
 
-Cập nhật: **2026-06-04 ~08:30 ICT**
+Cập nhật: **2026-06-17 ~14:25 ICT**
+
+## 17/06 — Feature: tự bỏ qua check-in/out ca có đơn LEAVE
+- **Vấn đề:** khi có ca nghỉ phép, trước đây phải bật tay toggle **"bỏ qua hôm nay"** để cron khỏi tự check-in/out ca đó (mà toggle này bỏ qua **cả ngày**, không nhắm đúng 1 ca).
+- **Giải pháp (deploy version `08dd081e`, commit `03a745f`):** worker tự phát hiện ca nào bạn đã nộp đơn leave và bỏ qua **riêng ca đó**, khỏi đụng toggle.
+  - `src/shift.js`: thêm **`getLeaveAssignmentIds(jwt, ids)`** — query `leaves` của bạn cho các assignment hôm nay, trả tập ca có **`status ≠ rejected`** (approved/covered/pending). **Non-fatal**: lỗi/timeout → trả `Set` rỗng (coi như không có leave), không bao giờ phá logic chấm công/cover.
+  - `src/index.js` `runAuto`: trước vòng lặp ca, ca nào nằm trong `leaveIds` → log + đẩy `actions:[{action:"skip", reason:"leave"}]`, **không** check-in/out. `handleStatus` thêm cờ `onLeave` cho mỗi ca.
+  - `src/ui.js`: badge **"Nghỉ phép · bỏ qua tự động"**, thẻ ca mờ đi (`.onleave`), khoá nút check-in/out của ca nghỉ.
+- ✅ **Verified LIVE 17/06 14:24 ICT:** ca 14-17 (đã nộp đơn leave "Personal reasons", approved) → `/cron` trả `actions:[{slot:"14-17", action:"skip", reason:"leave"}]`, **không** check-in dù đang đúng khung giờ vào ca.
+- **Lưu ý:** toggle "bỏ qua hôm nay" vẫn còn để dùng cho nghỉ cả ngày không qua đơn leave. Đơn leave bị **rejected** thì worker chấm công lại bình thường.
 
 ## 04/06 (tối) — UI: nâng cấp layered + animated (gold + jade)
 - Theo design direction user đưa: nền **phân tầng 4 lớp parallax** (xa: gradient+sao+trăng; núi: ridge+Phú Sĩ; giữa: **chùa pagoda**+torii; gần: đèn lồng+cây+hồ koi) — dịch nhẹ theo `pointermove` (rAF mượt, tắt khi reduced-motion). Lớp `.fx` riêng: hoa anh đào rơi + **đom đóm** phát sáng.
