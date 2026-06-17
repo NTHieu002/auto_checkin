@@ -50,12 +50,14 @@ async function handleStatus(env) {
   const c = createClient(env);
   const jwt = await c.getAccessToken();
   const assignments = await c.getTodayAssignments(jwt);
+  const leaveIds = await c.getLeaveAssignmentIds(jwt, assignments.map((a) => a.id));
   const enriched = [];
   for (const a of assignments) {
     const st = await c.getCheckinState(jwt, a.id);
     enriched.push({
       ...a,
       state: st.state,
+      onLeave: leaveIds.has(a.id),
       checkin_time: st.row?.checkin_time || null,
       checkout_time: st.row?.checkout_time || null,
     });
@@ -138,9 +140,18 @@ async function runAuto(env) {
   // and the cover sweep that follows must always run.
   if (!assignments.length) console.log(`[auto] no own shift ${date} (cover sweep still runs)`);
 
+  // Shifts the user has an active leave for: auto-skip them (no check-in/out) without
+  // needing the manual "skip today" toggle. Non-fatal lookup (empty Set on failure).
+  const leaveIds = await c.getLeaveAssignmentIds(jwt, assignments.map((a) => a.id));
+
   const nowMin = hour * 60 + minute;
   const actions = [];
   for (const a of assignments) {
+    if (leaveIds.has(a.id)) {
+      console.log(`[auto] skip leave ${a.shift_slot}`);
+      actions.push({ slot: a.shift_slot, action: "skip", reason: "leave" });
+      continue;
+    }
     const slot = parseSlot(a.shift_slot);
     if (!slot) continue;
     const shiftEnd = slot.end * 60;

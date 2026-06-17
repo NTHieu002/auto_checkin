@@ -130,6 +130,7 @@ export function renderHTML() {
     box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 14px 38px rgba(3,6,18,.5);
     transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s,border-color .22s}
   .card + .card{margin-top:14px}
+  .card.onleave{opacity:.62}
   @media(hover:hover){.card:hover{transform:translateY(-2px);border-color:rgba(150,172,228,.28)}}
   .reveal{animation:rise .5s both cubic-bezier(.2,.8,.2,1)}
   @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
@@ -142,6 +143,7 @@ export function renderHTML() {
   .b-none{background:rgba(150,172,228,.12);color:#c4d0f0;border-color:var(--line)}
   .b-open{background:var(--gold-soft);color:var(--gold);border-color:rgba(244,184,96,.34)}
   .b-closed{background:var(--jade-soft);color:var(--jade);border-color:rgba(72,201,166,.32)}
+  .b-leave{background:rgba(150,172,228,.10);color:#9fb0d6;border-color:var(--line);font-style:italic}
   .times{margin-top:12px;font-size:13px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line2);padding-top:11px}
   .times b{color:var(--txt);font-weight:600}
   .btns{display:flex;gap:10px;margin-top:15px}
@@ -330,9 +332,10 @@ export function renderHTML() {
   function showGate(){ $("gate").style.display = "block"; $("app").style.display = "none"; }
   function showApp(){ $("gate").style.display = "none"; $("app").style.display = "block"; load(); }
 
-  function badge(state){
-    if(state === "open") return '<span class="badge b-open">Đang trong ca</span>';
-    if(state === "closed") return '<span class="badge b-closed">Đã xong</span>';
+  function badge(a){
+    if(a.onLeave) return '<span class="badge b-leave">Nghỉ phép · bỏ qua tự động</span>';
+    if(a.state === "open") return '<span class="badge b-open">Đang trong ca</span>';
+    if(a.state === "closed") return '<span class="badge b-closed">Đã xong</span>';
     return '<span class="badge b-none">Chưa check-in</span>';
   }
   function fmt(iso){
@@ -347,13 +350,13 @@ export function renderHTML() {
       box.innerHTML = '<div class="card empty">Không có ca nào hôm nay 🌙</div>';
     } else {
       box.innerHTML = data.assignments.map(function(a, i){
-        var canIn = a.state === "none";
-        var canOut = a.state === "open";
-        var cls = "card reveal" + (a.state === "open" ? " glow" : "");
+        var canIn = a.state === "none" && !a.onLeave;
+        var canOut = a.state === "open" && !a.onLeave;
+        var cls = "card reveal" + (a.state === "open" && !a.onLeave ? " glow" : "") + (a.onLeave ? " onleave" : "");
         return '<div class="' + cls + '" style="animation-delay:' + (i * 70) + 'ms">'
           + '<div class="row"><div><div class="slot num">' + a.shift_slot + '</div>'
           + '<div class="role">Vai trò: ' + (a.role || (a.is_sl ? "SL" : "FL/TS")) + '</div></div>'
-          + badge(a.state) + '</div>'
+          + badge(a) + '</div>'
           + '<div class="times num">Vào: <b>' + fmt(a.checkin_time) + '</b> &nbsp; Ra: <b>' + fmt(a.checkout_time) + '</b></div>'
           + '<div class="btns">'
           + '<button class="act bi" ' + (canIn?"":"disabled") + ' onclick="act(\\'checkin\\',\\'' + a.id + '\\')">Check in</button>'

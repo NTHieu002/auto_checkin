@@ -127,6 +127,34 @@ export function createClient(env) {
     return rows.sort((a, b) => (parseSlot(a.shift_slot)?.start ?? 99) - (parseSlot(b.shift_slot)?.start ?? 99));
   }
 
+  // Which of the given assignments have an active leave for OUR member. A leave whose
+  // status is anything but 'rejected' (approved / covered / pending) means the user is
+  // off that shift, so the auto reconciler must NOT check it in/out. Returns a Set of
+  // assignment_ids. Never throws — this is an extra guard layered on top of the existing
+  // attendance/cover logic and must never break it; on any failure it returns an empty
+  // Set (i.e. behaves as if there were no leaves).
+  async function getLeaveAssignmentIds(jwt, assignmentIds) {
+    try {
+      if (!assignmentIds || !assignmentIds.length) return new Set();
+      const inList = `(${assignmentIds.join(",")})`;
+      const url =
+        `${REST}/leaves` +
+        `?select=assignment_id,status` +
+        `&member_id=eq.${MEMBER_ID}` +
+        `&assignment_id=in.${inList}` +
+        `&status=neq.rejected`;
+      const r = await fetch(url, { headers: authHeaders(jwt) });
+      if (!r.ok) {
+        console.log(`[leave] lookup failed: ${r.status} ${await r.text()}`);
+        return new Set();
+      }
+      return new Set((await r.json()).map((x) => x.assignment_id));
+    } catch (e) {
+      console.log(`[leave] lookup error: ${String(e?.message || e)}`);
+      return new Set();
+    }
+  }
+
   // Latest check-in for an assignment: { state: 'none'|'open'|'closed', row }.
   async function getCheckinState(jwt, assignmentId) {
     const url =
@@ -333,5 +361,5 @@ export function createClient(env) {
     }
   }
 
-  return { getAccessToken, getTodayAssignments, getCheckinState, checkin, checkout, getOpenCheckins, checkoutById, getOtStats, notifySlack };
+  return { getAccessToken, getTodayAssignments, getLeaveAssignmentIds, getCheckinState, checkin, checkout, getOpenCheckins, checkoutById, getOtStats, notifySlack };
 }
